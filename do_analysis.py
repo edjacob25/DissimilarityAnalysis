@@ -32,6 +32,7 @@ class Paramenters:
 Base = declarative_base()
 fg.set_style('orange', RgbFg(255, 150, 50))
 
+
 class Experiment(Base):
     __tablename__ = 'experiment'
 
@@ -110,12 +111,11 @@ def remove_attribute(filepath: str, attribute: str):
             new_file.write(result)
 
 
-# TODO: Add option to run other dissimilarity measures
 # TODO: Add option to read classpath from the config file
 def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = False, verbose: bool = False,
                     strategy: str = "A", weight_strategy: str = "N", other_measure: str = None, start_mode: str = "1") \
         -> Experiment:
-    clustered_file_path = filepath.replace(".arff", "_clustered.arff")
+    clustered_file_path = filepath.replace(".arff", f"_{strategy}_{weight_strategy}_clustered.arff")
     command = ["java", "-Xmx8192m"]
     if not no_classpath:
         java_classpath = "/mnt/c/Program Files/Weka-3-9/weka.jar:/home/jacob/wekafiles/packages" \
@@ -135,6 +135,7 @@ def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = F
     distance_function = f"\"weka.core.LearningBasedDissimilarity -R first-last -S {strategy} -w {weight_strategy}\""
     if other_measure is not None:
         distance_function = f"\"{other_measure}\""
+        clustered_file_path = filepath.replace(".arff", f"_{other_measure}__clustered.arff")
     clusterer = f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 " \
                 f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -A {distance_function} -I 500 " \
                 f"-num-slots {math.floor(num_procs / 3)} -S 10"
@@ -193,8 +194,8 @@ def copy_files(filepath: str, strategy: str = "", weight_strategy: str = ""):
     copyfile(filepath, new_filepath)
 
     new_clustered_filepath = f"{path}/{filename}_{strategy}_{weight_strategy}/{filename}.clus"
-    copyfile(f"{path}/{filename}_clustered.arff", new_clustered_filepath)
-
+    copyfile(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff", new_clustered_filepath)
+    # os.remove(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff")
     return new_filepath, new_clustered_filepath
 
 
@@ -213,7 +214,7 @@ def get_f_measure(filepath: str, clustered_filepath: str, exe_path: str = None, 
     else:
         if verbose:
             print(f"Calculating f-measure took {end - start}")
-        print(f"{fg.green}Finished getting f-measure for {fg.blue}{filepath}{fg.green}, f-measure -> {fg.blue} "
+        print(f"{fg.green}Finished getting f-measure for {fg.blue}{filepath}{fg.green}, f-measure -> {fg.blue}"
               f"{text_result}{fg.rs}")
         return text_result
 
@@ -239,11 +240,14 @@ def format_seconds(seconds: float) -> str:
 def do_single_experiment(item_fullpath: str, strategy: str, weight: str, params: Paramenters) -> Experiment:
     if weight is None:
         exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, other_measure=strategy)
+        new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
+                                                          weight_strategy="")
     else:
         exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, strategy=strategy,
                               weight_strategy=weight)
-    new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
-                                                      weight_strategy=weight)
+        new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
+                                                          weight_strategy=weight)
+
     f_measure = get_f_measure(new_filepath, new_clustered_filepath,
                               exe_path=params.measure_calculator_path,
                               verbose=params.verbose)
@@ -283,13 +287,14 @@ def do_experiments(params: Paramenters):
     start = time.time()
     root_dir = os.path.abspath(params.directory)
     i = 0
+    pool = multiprocessing.Pool(math.floor(multiprocessing.cpu_count() / 2))
     for item in os.listdir(root_dir):
         if item.rsplit('.', 1)[-1] == "arff" and "clustered" not in item:
             item_fullpath = os.path.join(root_dir, item)
             try:
-                for strategy, weight in measures:
-                    exp = do_single_experiment(item_fullpath, strategy, weight, params)
-                    exp_set.experiments.append(exp)
+                sets = pool.starmap(do_single_experiment,
+                                    [(item_fullpath, strategy, weight, params) for strategy, weight in measures])
+                exp_set.experiments.extend(sets)
                 session.commit()
                 i += 1
             except KeyboardInterrupt:
