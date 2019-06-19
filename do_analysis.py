@@ -17,6 +17,7 @@ from openpyxl import Workbook
 from sqlalchemy import create_engine, or_, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from sty import fg, ef, rs, RgbFg
 
 
 @dataclass
@@ -29,7 +30,7 @@ class Paramenters:
 
 
 Base = declarative_base()
-
+fg.set_style('orange', RgbFg(255, 150, 50))
 
 class Experiment(Base):
     __tablename__ = 'experiment'
@@ -164,13 +165,13 @@ def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = F
             os.remove(clustered_file_path)
 
         if start_mode == "1":
-            print("There was an error running weka with the k-means++ mode, trying with classic mode")
+            print(f"{fg.orange}There was an error running weka with the k-means++ mode, trying with classic mode{fg.rs}")
             return cluster_dataset(filepath, classpath=classpath, no_classpath=no_classpath, verbose=verbose,
                                    strategy=strategy, weight_strategy=weight_strategy, other_measure=other_measure,
                                    start_mode="0")
         else:
-            raise Exception(f"There was a error running weka with the file {filepath.rsplit('/')[-1]} and the " +
-                            f"following command {' '.join(result.args)}")
+            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.rsplit('/')[-1]} and the " +
+                            f"following command{ef.italic} {' '.join(result.args)}{rs.italic}")
 
     if start_mode == "1":
         return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
@@ -207,12 +208,13 @@ def get_f_measure(filepath: str, clustered_filepath: str, exe_path: str = None, 
     text_result = result.stdout.decode('utf-8')
 
     if result.returncode != 0:
-        print(f"Could not get F-Measure\nError -> {text_result}")
+        print(f"{fg.red}Could not get F-Measure\nError ->{fg.rs} {text_result}")
         raise Exception("Could not calculate f-measure")
     else:
         if verbose:
             print(f"Calculating f-measure took {end - start}")
-        print(f"Finished getting f-measure for {filepath}, f-measure -> {text_result}")
+        print(f"{fg.green}Finished getting f-measure for {fg.blue}{filepath}{fg.green}, f-measure -> {fg.blue} "
+              f"{text_result}{fg.rs}")
         return text_result
 
 
@@ -292,12 +294,12 @@ def do_experiments(params: Paramenters):
                 i += 1
             except KeyboardInterrupt:
                 session.rollback()
-                print(f"The analysis of the file {item} was requested to be finished by using Ctrl-C")
+                print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
                 continue
             except Exception as exc:
                 session.rollback()
                 print(exc)
-                print(f"Skipping file {item}")
+                print(f"{fg.red}Skipping file {item}{fg.rs}")
                 continue
             finally:
                 print("\n\n")
@@ -352,7 +354,7 @@ def create_report(experiment_set: int, base_path: str = ""):
         ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
 
     save_path = os.path.join(base_path, "results.xlsx")
-    print(f"Saving to {save_path}")
+    print(f"{fg.green}Saving report to {save_path}{fg.rs}")
     wb.save(save_path)
 
 
@@ -400,7 +402,7 @@ def create_report_multiple(*args: int):
         ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
 
     save_path = os.path.join("results.xlsx")
-    print(f"Saving to {save_path}")
+    print(f"{fg.green}Saving report to {save_path}{fg.rs}")
     wb.save(save_path)
 
 
@@ -420,7 +422,7 @@ def main():
 
     # TODO: Read a single file
     if not os.path.isdir(args.directory):
-        print("The selected path is not a directory")
+        print(f"{fg.red}The selected path is not a directory{fg.rs}")
         exit(1)
 
     params = Paramenters(args.directory, args.verbose, args.cp, args.measure_calculator_path, args.alternate_analysis)
