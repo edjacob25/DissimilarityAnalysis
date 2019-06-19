@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import subprocess
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
 from shutil import copyfile
@@ -16,6 +17,16 @@ from openpyxl import Workbook
 from sqlalchemy import create_engine, or_, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+
+
+@dataclass
+class Paramenters:
+    directory: str
+    verbose: bool
+    cp: str = None
+    measure_calculator_path: str = None
+    alternate: bool = False
+
 
 Base = declarative_base()
 
@@ -223,9 +234,23 @@ def format_seconds(seconds: float) -> str:
         return f"{seconds} seconds"
 
 
-def do_analysis(directory: str, verbose: bool, cp: str = None, measure_calculator_path: str = None,
-                alternate: bool = False):
-    if alternate:
+def do_single_experiment(item_fullpath: str, strategy: str, weight: str, params: Paramenters) -> Experiment:
+    if weight is None:
+        exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, other_measure=strategy)
+    else:
+        exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, strategy=strategy,
+                              weight_strategy=weight)
+    new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
+                                                      weight_strategy=weight)
+    f_measure = get_f_measure(new_filepath, new_clustered_filepath,
+                              exe_path=params.measure_calculator_path,
+                              verbose=params.verbose)
+    exp.f_score = f_measure
+    return exp
+
+
+def do_experiments(params: Paramenters):
+    if params.alternate:
         measures = ["weka.core.Eskin", "weka.core.Gambaryan", "weka.core.Goodall", "weka.core.Lin",
                     "weka.core.OccurenceFrequency", "weka.core.InverseOccurenceFrequency",
                     "weka.core.EuclideanDistance", "weka.core.ManhattanDistance", "weka.core.LinModified",
@@ -248,31 +273,21 @@ def do_analysis(directory: str, verbose: bool, cp: str = None, measure_calculato
     session = session_class()
     code_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
     repo = git.Repo(code_directory)
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=directory, commit=repo.head.object.hexsha)
+
+    exp_set = ExperimentSet(time=datetime.now(), base_directory=params.directory, commit=repo.head.object.hexsha)
     session.add(exp_set)
     session.commit()
 
     start = time.time()
-    root_dir = os.path.abspath(directory)
+    root_dir = os.path.abspath(params.directory)
     i = 0
     for item in os.listdir(root_dir):
         if item.rsplit('.', 1)[-1] == "arff" and "clustered" not in item:
             item_fullpath = os.path.join(root_dir, item)
             try:
                 for strategy, weight in measures:
-                    if weight is None:
-                        exp = cluster_dataset(item_fullpath, verbose=verbose, classpath=cp, other_measure=strategy)
-                    else:
-                        exp = cluster_dataset(item_fullpath, verbose=verbose, classpath=cp, strategy=strategy,
-                                              weight_strategy=weight)
-                    new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
-                                                                      weight_strategy=weight)
-                    f_measure = get_f_measure(new_filepath, new_clustered_filepath,
-                                              exe_path=measure_calculator_path,
-                                              verbose=verbose)
-                    exp.f_score = f_measure
+                    exp = do_single_experiment(item_fullpath, strategy, weight, params)
                     exp_set.experiments.append(exp)
-
                 session.commit()
                 i += 1
             except KeyboardInterrupt:
@@ -351,7 +366,7 @@ def create_report_multiple(*args: int):
     row = 1
     last = ""
     column = 2
-    sets = []
+
     for experiment in session.query(Experiment).filter(or_(Experiment.set_id == v for v in args)).order_by(
             Experiment.file_name):
         if last != experiment.file_name:
@@ -408,7 +423,8 @@ def main():
         print("The selected path is not a directory")
         exit(1)
 
-    do_analysis(args.directory, args.verbose, args.cp, args.measure_calculator_path, args.alternate_analysis)
+    params = Paramenters(args.directory, args.verbose, args.cp, args.measure_calculator_path, args.alternate_analysis)
+    do_experiments(params)
 
 
 if __name__ == "__main__":
