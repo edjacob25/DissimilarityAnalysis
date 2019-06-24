@@ -195,7 +195,7 @@ def copy_files(filepath: str, strategy: str = "", weight_strategy: str = ""):
 
     new_clustered_filepath = f"{path}/{filename}_{strategy}_{weight_strategy}/{filename}.clus"
     copyfile(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff", new_clustered_filepath)
-    # os.remove(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff")
+    os.remove(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff")
     return new_filepath, new_clustered_filepath
 
 
