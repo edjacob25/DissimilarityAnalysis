@@ -2,7 +2,8 @@ import argparse
 import os
 from shutil import rmtree
 
-parser = argparse.ArgumentParser(description='Does the analysis of a directory containing categorical datasets')
+parser = argparse.ArgumentParser(description='Cleans the result files and folders of a directory containing categorical'
+                                             ' datasets')
 parser.add_argument('directory', help="Directory in which the cleaned datasets are")
 
 args = parser.parse_args()
