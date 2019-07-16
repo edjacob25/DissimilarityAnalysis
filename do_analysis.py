@@ -27,6 +27,9 @@ class Paramenters:
     cp: str = None
     measure_calculator_path: str = None
     alternate: bool = False
+    strategy: str = None
+    multiplier: str = None
+    weight: str = None
 
 
 Base = declarative_base()
@@ -166,13 +169,13 @@ def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = F
             os.remove(clustered_file_path)
 
         if start_mode == "1":
-            print(f"{fg.orange}There was an error running weka with the k-means++ mode, trying with classic mode{fg.rs}")
+            print(f"{fg.orange}There was an error running weka with k-means++ mode, trying with classic mode{fg.rs}")
             return cluster_dataset(filepath, classpath=classpath, no_classpath=no_classpath, verbose=verbose,
                                    strategy=strategy, weight_strategy=weight_strategy, other_measure=other_measure,
                                    start_mode="0")
         else:
-            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.rsplit('/')[-1]} and the " +
-                            f"following command{ef.italic} {' '.join(result.args)}{rs.italic}")
+            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.rsplit('/')[-1]} and the" +
+                            f" following command{ef.italic} {' '.join(result.args)}{rs.italic}")
 
     if start_mode == "1":
         return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
@@ -320,6 +323,25 @@ def do_experiments(params: Paramenters):
     send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
 
 
+def full_experiments(params: Paramenters):
+    params.alternate = False
+    do_experiments(params)
+    params.alternate = True
+    do_experiments(params)
+
+    weights = ["K", "A"]
+    strategies = ["B", "D", "M", "L"]
+    multipliers = ["N", "I"]
+    for weight in weights:
+        for strategy in strategies:
+            for multiply in multipliers:
+                params.strategy = strategy
+                params.weight = weight
+                params.multiplier = multiply
+                params.alternate = False
+                do_experiments(params)
+
+
 def create_report(experiment_set: int, base_path: str = ""):
     wb = Workbook()
     ws = wb.active
@@ -359,54 +381,6 @@ def create_report(experiment_set: int, base_path: str = ""):
         ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
 
     save_path = os.path.join(base_path, "results.xlsx")
-    print(f"{fg.green}Saving report to {save_path}{fg.rs}")
-    wb.save(save_path)
-
-
-def create_report_multiple(*args: int):
-    wb = Workbook()
-    ws = wb.active
-    engine = create_engine('sqlite:///results.db')
-    session_class = sessionmaker(bind=engine)
-    session = session_class()
-    headers = []
-    row = 1
-    last = ""
-    column = 2
-
-    for experiment in session.query(Experiment).filter(or_(Experiment.set_id == v for v in args)).order_by(
-            Experiment.file_name):
-        if last != experiment.file_name:
-            column = 2
-            row += 1
-            last = experiment.file_name
-            ws.cell(row=row, column=1, value=experiment.file_name.rsplit('/')[-1])
-        repo = git.Repo(search_parent_directories=True)
-        message = repo.commit(experiment.set.commit).message.strip()
-        header = f"{experiment.method.split('.')[-1]} - {message} - {experiment.set.commit}"
-        if header not in headers:
-            headers.append(header)
-        ws.cell(row=row, column=column, value=experiment.f_score)
-        column += 1
-
-    for i, header in enumerate(headers):
-        ws.cell(row=1, column=i + 2, value=header)
-        ws.cell(row=1, column=i + column + 2, value=header)
-
-    for i in range(2, row + 1):
-        base = ord('A') + column - 2
-        for j in range(column - 2):
-            item = ord('B') + j
-            ws.cell(row=i, column=j + column + 2, value=f"=RANK.AVG({chr(item)}{i},$B{i}:${chr(base)}{i})")
-
-    start = chr(ord('B') + column)
-    end = chr(ord('B') + column + column - 3)
-    for i in range(column - 2):
-        item = chr(ord('B') + i + column)
-        ws.cell(row=row + 3, column=i + column + 2, value=f"=AVERAGE({item}2:{item}{row + 1})")
-        ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
-
-    save_path = os.path.join("results.xlsx")
     print(f"{fg.green}Saving report to {save_path}{fg.rs}")
     wb.save(save_path)
 
