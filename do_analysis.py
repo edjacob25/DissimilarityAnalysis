@@ -5,31 +5,46 @@ import multiprocessing
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, astuple
 from datetime import datetime
 from itertools import product
-from shutil import copyfile
+from shutil import copyfile, rmtree
+from zipfile import ZipFile, ZIP_BZIP2
 
 import git
 import math
 import requests
 from openpyxl import Workbook
-from sqlalchemy import create_engine, or_, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sty import fg, ef, rs, RgbFg
 
 
 @dataclass
-class Paramenters:
+class GeneralParamenters:
     directory: str
     verbose: bool
-    cp: str = None
+    classpath: str = None
     measure_calculator_path: str = None
+
+
+@dataclass
+class ExperimentSetParameters:
+    initial: bool = True
     alternate: bool = False
     strategy: str = None
     multiplier: str = None
     weight: str = None
+
+
+@dataclass
+class ExperimentParameters:
+    filepath: str
+    measure: str
+    strategy: str = None
+    weight_strategy: str = None
+    learning_based: bool = False
 
 
 Base = declarative_base()
@@ -115,32 +130,40 @@ def remove_attribute(filepath: str, attribute: str):
 
 
 # TODO: Add option to read classpath from the config file
-def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = False, verbose: bool = False,
-                    strategy: str = "A", weight_strategy: str = "N", other_measure: str = None, start_mode: str = "1") \
-        -> Experiment:
-    clustered_file_path = filepath.replace(".arff", f"_{strategy}_{weight_strategy}_clustered.arff")
+def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: ExperimentSetParameters,
+                    parameters: GeneralParamenters, start_mode: str = "1") -> Experiment:
+    filepath, measure, strategy, weight, learning_based = astuple(exp_parameters)
+    clustered_file_path = filepath.replace(".arff", f"_{measure}_{strategy}_{weight}_clustered.arff")
+
     command = ["java", "-Xmx8192m"]
-    if not no_classpath:
+
+    if parameters.classpath is not None:
+        java_classpath = parameters.classpath
+    else:
+        # Default classpath
         java_classpath = "/mnt/c/Program Files/Weka-3-9/weka.jar:/home/jacob/wekafiles/packages" \
                          "/SimmilarityMeasuresForCategoricalData/DissimilarityMeasures-0.1.jar"
-        if classpath is not None:
-            java_classpath = classpath
-        command.append("-cp")
-        command.append(java_classpath)
+    command.append("-cp")
+    command.append(java_classpath)
 
     command.append("weka.filters.unsupervised.attribute.AddCluster")
     command.append("-W")
 
     num_classes = get_number_of_clusters(filepath)
-    if verbose:
+    if parameters.verbose:
         print(f"Number of clusters for {filepath} is {num_classes}")
     num_procs = multiprocessing.cpu_count()
-    distance_function = f"\"weka.core.LearningBasedDissimilarity -R first-last -S {strategy} -w {weight_strategy}\""
-    if other_measure is not None:
-        distance_function = f"\"{other_measure}\""
-        clustered_file_path = filepath.replace(".arff", f"_{other_measure}__clustered.arff")
+    if learning_based:
+        distance_function = f"\"weka.core.{measure} -R first-last -S {strategy} -W {weight}\""
+    else:
+        distance_function = f"\"weka.core.{measure}\""
+
+    if not set_parameters.initial:
+        distance_function = f"\"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} " \
+                            f"-p {set_parameters.multiplier}\" "
+
     clusterer = f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 " \
-                f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -A {distance_function} -I 500 " \
+                f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -M -A {distance_function} -I 500 " \
                 f"-num-slots {math.floor(num_procs / 3)} -S 10"
     command.append(clusterer)
     command.append("-i")
@@ -155,24 +178,28 @@ def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = F
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     end = time.time()
 
+    identifier = f"measure {measure}"
+    if exp_parameters.learning_based:
+        identifier = f"{identifier}(strategy: {strategy}, weight: {weight})"
+    if start_mode == "0":
+        identifier = f"{identifier} classic mode"
+
     print(result.stderr.decode("utf-8"))
-    if verbose:
+    if parameters.verbose:
         print(result.stdout.decode("utf-8"))
-        print(f"Analyzing dataset {filepath} with strategy {strategy} took {end - start}")
+        print(f"Clustering dataset {filepath} with {identifier} took {end - start}")
 
     if "Exception" not in result.stderr.decode("utf-8"):
         remove_attribute(clustered_file_path, "Class")
         number_of_clusters = get_number_of_clusters(clustered_file_path)
-        print(f"Finished clustering dataset {filepath} with strategy {strategy} and weight {weight_strategy}")
+        print(f"Finished clustering dataset {filepath} with {identifier}")
     else:
         if os.path.exists(clustered_file_path):
             os.remove(clustered_file_path)
 
         if start_mode == "1":
             print(f"{fg.orange}There was an error running weka with k-means++ mode, trying with classic mode{fg.rs}")
-            return cluster_dataset(filepath, classpath=classpath, no_classpath=no_classpath, verbose=verbose,
-                                   strategy=strategy, weight_strategy=weight_strategy, other_measure=other_measure,
-                                   start_mode="0")
+            return cluster_dataset(exp_parameters, set_parameters, parameters, start_mode="0")
         else:
             raise Exception(f"{fg.red}There was a error running weka with the file {filepath.rsplit('/')[-1]} and the" +
                             f" following command{ef.italic} {' '.join(result.args)}{rs.italic}")
@@ -189,16 +216,24 @@ def cluster_dataset(filepath: str, classpath: str = None, no_classpath: bool = F
                           start_time=start_dt, comments="")
 
 
-def copy_files(filepath: str, strategy: str = "", weight_strategy: str = ""):
+def copy_files(exp_params: ExperimentParameters):
+    filepath, measure, strategy, weight, learning_based = astuple(exp_params)
     path, file = filepath.rsplit("/", 1)
     filename = file.split(".")[0]
-    os.mkdir(f"{path}/{filename}_{strategy}_{weight_strategy}")
-    new_filepath = f"{path}/{filename}_{strategy}_{weight_strategy}/{file}"
+
+    if learning_based:
+        new_folder_path = f"{path}/{filename}_{measure}_{strategy}_{weight}"
+    else:
+        new_folder_path = f"{path}/{filename}_{measure}"
+
+    os.mkdir(new_folder_path)
+    new_filepath = f"{new_folder_path}/{file}"
     copyfile(filepath, new_filepath)
 
-    new_clustered_filepath = f"{path}/{filename}_{strategy}_{weight_strategy}/{filename}.clus"
-    copyfile(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff", new_clustered_filepath)
-    os.remove(f"{path}/{filename}_{strategy}_{weight_strategy}_clustered.arff")
+    old_clustered_filepath = f"{path}/{filename}_{measure}_{strategy}_{weight}_clustered.arff"
+    new_clustered_filepath = f"{new_folder_path}/{filename}.clus"
+    copyfile(old_clustered_filepath, new_clustered_filepath)
+    os.remove(old_clustered_filepath)
     return new_filepath, new_clustered_filepath
 
 
@@ -240,16 +275,17 @@ def format_seconds(seconds: float) -> str:
         return f"{seconds} seconds"
 
 
-def do_single_experiment(item_fullpath: str, strategy: str, weight: str, params: Paramenters) -> Experiment:
+def do_single_experiment(item_fullpath: str, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
+                         params: GeneralParamenters) -> Experiment:
     if weight is None:
-        exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, other_measure=strategy)
-        new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
-                                                          weight_strategy="")
+        exp_params = ExperimentParameters(filepath=item_fullpath, measure=strategy)
     else:
-        exp = cluster_dataset(item_fullpath, verbose=params.verbose, classpath=params.cp, strategy=strategy,
-                              weight_strategy=weight)
-        new_filepath, new_clustered_filepath = copy_files(item_fullpath, strategy=strategy,
-                                                          weight_strategy=weight)
+        exp_params = ExperimentParameters(filepath=item_fullpath, measure="LearningBasedDissimilarity",
+                                          strategy=strategy, weight_strategy=weight, learning_based=True)
+
+    exp = cluster_dataset(exp_params, set_parameters, params)
+
+    new_filepath, new_clustered_filepath = copy_files(exp_params)
 
     f_measure = get_f_measure(new_filepath, new_clustered_filepath,
                               exe_path=params.measure_calculator_path,
@@ -258,17 +294,15 @@ def do_single_experiment(item_fullpath: str, strategy: str, weight: str, params:
     return exp
 
 
-def do_experiments(params: Paramenters):
-    if params.alternate:
-        measures = ["weka.core.Eskin", "weka.core.Gambaryan", "weka.core.Goodall", "weka.core.Lin",
-                    "weka.core.OccurenceFrequency", "weka.core.InverseOccurenceFrequency",
-                    "weka.core.EuclideanDistance", "weka.core.ManhattanDistance", "weka.core.LinModified",
-                    "weka.core.LinModified2", "weka.core.LinModified_Kappa", "weka.core.LinModified_MinusKappa",
-                    "weka.core.LinModified_KappaMax"]
+def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParamenters):
+    if set_params.alternate:
 
-        # measures = ["weka.core.EskinModified", "weka.core.GambaryanModified", "weka.core.GoodallModified",
-        #             "weka.core.OFModified", "weka.core.IOFModified", "weka.core.LinModified_Kappa",
-        #             "weka.core.LinModified_KappaMax"]
+        measures = ["Eskin", "Gambaryan", "Goodall", "Lin", "OccurenceFrequency", "InverseOccurenceFrequency",
+                    "EuclideanDistance", "ManhattanDistance", "LinModified", "LinModified2", "LinModified_Kappa",
+                    "LinModified_MinusKappa", "LinModified_KappaMax"]
+        if not set_params.initial:
+            measures = ["EskinModified", "GambaryanModified", "GoodallModified", "OFModified", "IOFModified",
+                        "LinModified"]
 
         measures = list(zip(measures, [None for _ in range(len(measures))]))
     else:
@@ -296,7 +330,8 @@ def do_experiments(params: Paramenters):
             item_fullpath = os.path.join(root_dir, item)
             try:
                 sets = pool.starmap(do_single_experiment,
-                                    [(item_fullpath, strategy, weight, params) for strategy, weight in measures])
+                                    [(item_fullpath, strategy, weight, set_params, params) for strategy, weight in
+                                     measures])
                 exp_set.experiments.extend(sets)
                 session.commit()
                 i += 1
@@ -317,17 +352,19 @@ def do_experiments(params: Paramenters):
     exp_set.time_taken = end - start
     exp_set.number_of_datasets = i
     session.commit()
-    create_report(exp_set.id, base_path=root_dir)
+    # create_report(exp_set.id, base_path=root_dir)
 
     time_str = format_seconds(end - start)
     send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
 
 
-def full_experiments(params: Paramenters):
-    params.alternate = False
-    do_experiments(params)
-    params.alternate = True
-    do_experiments(params)
+def full_experiments(params: GeneralParamenters):
+    clean_experiments(params.directory)
+    set_params = ExperimentSetParameters(initial=True)
+    do_experiment_set(set_params, params)
+    set_params.alternate = True
+    do_experiment_set(set_params, params)
+    save_results(params.directory, f"Results_initial.zip")
 
     weights = ["K", "A"]
     strategies = ["B", "D", "M", "L"]
@@ -335,11 +372,35 @@ def full_experiments(params: Paramenters):
     for weight in weights:
         for strategy in strategies:
             for multiply in multipliers:
-                params.strategy = strategy
-                params.weight = weight
-                params.multiplier = multiply
-                params.alternate = False
-                do_experiments(params)
+                set_params = ExperimentSetParameters(strategy=strategy, multiplier=multiply, weight=weight,
+                                                     initial=False)
+                do_experiment_set(set_params, params)
+                set_params.alternate = True
+                do_experiment_set(set_params, params)
+                save_results(params.directory, f"Results_weight{weight}_strategy{strategy}_multiply_{multipliers}.zip")
+                clean_experiments(params.directory)
+
+
+def clean_experiments(directory: str):
+    root_dir = os.path.abspath(directory)
+    for item in os.listdir(root_dir):
+        item_full_path = os.path.join(root_dir, item)
+        if os.path.isdir(item_full_path):
+            rmtree(item_full_path)
+            continue
+        if "clustered" in item:
+            os.remove(item_full_path)
+
+
+def save_results(directory: str, filename: str):
+    root_dir = os.path.abspath(directory)
+    with ZipFile(os.path.join(root_dir, filename), 'w', compression=ZIP_BZIP2) as zipfile:
+        for directory in os.listdir(root_dir):
+            dir_full_path = os.path.join(root_dir, directory)
+            if os.path.isdir(dir_full_path):
+                zipfile.write(dir_full_path, arcname=directory)
+                for file in os.listdir(dir_full_path):
+                    zipfile.write(os.path.join(dir_full_path, file), arcname=os.path.join(directory, file))
 
 
 def create_report(experiment_set: int, base_path: str = ""):
@@ -395,6 +456,9 @@ def main():
     parser.add_argument("--alternate-analysis", help="Does the alternate analysis with the already known simmilarity "
                                                      "measures", action='store_true')
     parser.add_argument("-s", "--save", help="Path to the f-measure calculator", action='store_true')
+
+    parser.add_argument("--full", help="Whether to do all combinations, overrides --alternate-analysis",
+                        action='store_true')
     # TODO: Actually save the output of the commands
 
     args = parser.parse_args()
@@ -404,8 +468,14 @@ def main():
         print(f"{fg.red}The selected path is not a directory{fg.rs}")
         exit(1)
 
-    params = Paramenters(args.directory, args.verbose, args.cp, args.measure_calculator_path, args.alternate_analysis)
-    do_experiments(params)
+    params = GeneralParamenters(args.directory, args.verbose, args.cp, args.measure_calculator_path)
+    if args.full:
+        print(f"{fg.red}DOING ALL EXPERIMENTS{fg.rs}")
+        print(f"{fg.green}Go for a coffee{fg.rs}")
+        full_experiments(params)
+    else:
+        set_params = ExperimentSetParameters(alternate=args.alternate_analysis)
+        do_experiment_set(set_params, params)
 
 
 if __name__ == "__main__":
