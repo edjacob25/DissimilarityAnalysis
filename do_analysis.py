@@ -36,6 +36,7 @@ class ExperimentSetParameters:
     strategy: str = None
     multiplier: str = None
     weight: str = None
+    description: str = ""
 
 
 @dataclass
@@ -63,8 +64,8 @@ class Experiment(Base):
     file_name = Column(String)
     comments = Column(String)
     number_of_classes = Column(Integer)
-    start_time = Column(DateTime)
     number_of_clusters = Column(Integer)
+    start_time = Column(DateTime)
 
     set_id = Column(Integer, ForeignKey('experiment_set.id'))
     set = relationship("ExperimentSet", back_populates="experiments")
@@ -317,7 +318,13 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     code_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
     repo = git.Repo(code_directory)
 
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=params.directory, commit=repo.head.object.hexsha)
+    description = f"{set_params.description}"
+    if not set_params.initial:
+        description = f"{description} using {set_params.weight} as decision weight, doing {set_params.strategy} when " \
+                      f"weight is low and multiplying by {set_params.multiplier}"
+
+    exp_set = ExperimentSet(time=datetime.now(), base_directory=params.directory, commit=repo.head.object.hexsha,
+                            description=description)
     session.add(exp_set)
     session.commit()
 
@@ -360,11 +367,13 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
 
 def full_experiments(params: GeneralParamenters):
     clean_experiments(params.directory)
-    set_params = ExperimentSetParameters(initial=True)
+    set_params = ExperimentSetParameters(initial=True, description="Initial Learning Based")
     do_experiment_set(set_params, params)
     set_params.alternate = True
+    set_params.description = "Initial Other Measures"
     do_experiment_set(set_params, params)
     save_results(params.directory, f"Results_initial.zip")
+    clean_experiments(params.directory)
 
     weights = ["K", "A"]
     strategies = ["B", "D", "M", "L"]
@@ -373,9 +382,10 @@ def full_experiments(params: GeneralParamenters):
         for strategy in strategies:
             for multiply in multipliers:
                 set_params = ExperimentSetParameters(strategy=strategy, multiplier=multiply, weight=weight,
-                                                     initial=False)
+                                                     initial=False, description="Learning Based")
                 do_experiment_set(set_params, params)
                 set_params.alternate = True
+                set_params.description = "Modified Measures"
                 do_experiment_set(set_params, params)
                 save_results(params.directory, f"Results_weight{weight}_strategy{strategy}_multiply_{multipliers}.zip")
                 clean_experiments(params.directory)
