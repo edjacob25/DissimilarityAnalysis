@@ -155,13 +155,15 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
         print(f"Number of clusters for {filepath} is {num_classes}")
     num_procs = multiprocessing.cpu_count()
     if learning_based:
-        distance_function = f"\"weka.core.{measure} -R first-last -S {strategy} -W {weight}\""
+        distance_function = f"weka.core.{measure} -R first-last -S {strategy} -W {weight}"
     else:
-        distance_function = f"\"weka.core.{measure}\""
+        distance_function = f"weka.core.{measure}"
 
     if not set_parameters.initial:
         distance_function = f"\"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} " \
-                            f"-p {set_parameters.multiplier}\" "
+                            f"-p {set_parameters.multiplier}\""
+    else:
+        distance_function = f"\"{distance_function}\""
 
     clusterer = f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 " \
                 f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -M -A {distance_function} -I 500 " \
@@ -299,7 +301,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     if set_params.alternate:
 
         measures = ["Eskin", "Gambaryan", "Goodall", "Lin", "OccurenceFrequency", "InverseOccurenceFrequency",
-                    "EuclideanDistance", "ManhattanDistance", "LinModified", "LinModified2", "LinModified_Kappa",
+                    "EuclideanDistance", "ManhattanDistance", "LinModified", "LinModified_Kappa",
                     "LinModified_MinusKappa", "LinModified_KappaMax"]
         if not set_params.initial:
             measures = ["EskinModified", "GambaryanModified", "GoodallModified", "OFModified", "IOFModified",
