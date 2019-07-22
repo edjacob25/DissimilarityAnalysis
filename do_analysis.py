@@ -161,7 +161,7 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
 
     if not set_parameters.initial:
         distance_function = f"\"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} " \
-                            f"-p {set_parameters.multiplier}\""
+                            f"-t {set_parameters.multiplier}\""
     else:
         distance_function = f"\"{distance_function}\""
 
@@ -382,14 +382,14 @@ def full_experiments(params: GeneralParamenters):
     multipliers = ["N", "I"]
     for weight in weights:
         for strategy in strategies:
-            for multiply in multipliers:
-                set_params = ExperimentSetParameters(strategy=strategy, multiplier=multiply, weight=weight,
+            for multiplier in multipliers:
+                set_params = ExperimentSetParameters(strategy=strategy, multiplier=multiplier, weight=weight,
                                                      initial=False, description="Learning Based")
                 do_experiment_set(set_params, params)
                 set_params.alternate = True
                 set_params.description = "Modified Measures"
                 do_experiment_set(set_params, params)
-                save_results(params.directory, f"Results_weight{weight}_strategy{strategy}_multiply_{multipliers}.zip")
+                save_results(params.directory, f"Results_weight{weight}_strategy{strategy}_multiply_{multiplier}.zip")
                 clean_experiments(params.directory)
 
 
