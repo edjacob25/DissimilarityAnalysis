@@ -5,3 +5,4 @@ config.ini
 *.png
 __pycache__
 *.sql
+*.log
