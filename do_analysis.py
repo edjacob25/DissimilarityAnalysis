@@ -379,7 +379,7 @@ def full_experiments(params: GeneralParamenters):
 
     weights = ["K", "A"]
     strategies = ["B", "D", "M", "L"]
-    multipliers = ["N", "I"]
+    multipliers = ["N", "I", "O"]
     for weight in weights:
         for strategy in strategies:
             for multiplier in multipliers:
