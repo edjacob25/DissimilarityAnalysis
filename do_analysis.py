@@ -26,6 +26,7 @@ class GeneralParamenters:
     directory: str
     verbose: bool
     classpath: str = None
+    normalize_dissimilarity: bool = False
     measure_calculator_path: str = None
 
 
@@ -156,6 +157,8 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
     num_procs = multiprocessing.cpu_count()
     if learning_based:
         distance_function = f"weka.core.{measure} -R first-last -S {strategy} -W {weight}"
+        if parameters.normalize_dissimilarity:
+            distance_function = f"{distance_function} -n"
     else:
         distance_function = f"weka.core.{measure}"
 
@@ -389,7 +392,10 @@ def full_experiments(params: GeneralParamenters):
                 set_params.alternate = True
                 set_params.description = "Modified Measures"
                 do_experiment_set(set_params, params)
-                save_results(params.directory, f"Results_weight{weight}_strategy{strategy}_multiply_{multiplier}.zip")
+                results_archive_name = f"Results_weight{weight}_strategy{strategy}_multiply_{multiplier}.zip"
+                if params.normalize_dissimilarity:
+                    results_archive_name = results_archive_name.replace(".zip", "_n.zip")
+                save_results(params.directory, results_archive_name)
                 clean_experiments(params.directory)
 
 
