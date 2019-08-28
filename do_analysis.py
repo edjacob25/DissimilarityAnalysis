@@ -108,7 +108,7 @@ def remove_attribute(filepath: str, attribute: str):
             if not data_processing:
                 line_upper = line.upper()
                 if line_upper.startswith("@ATTRIBUTE"):
-                    if attribute.upper() not in line_upper:
+                    if attribute.upper() != line_upper.split(" ")[1]:
                         attributes.append(line)
                         permitted_indexes.append(i)
                     i += 1
