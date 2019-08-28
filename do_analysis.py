@@ -26,8 +26,8 @@ class GeneralParamenters:
     directory: str
     verbose: bool
     classpath: str = None
-    normalize_dissimilarity: bool = False
     measure_calculator_path: str = None
+    normalize_dissimilarity: bool = False
 
 
 @dataclass
@@ -47,6 +47,7 @@ class ExperimentParameters:
     strategy: str = None
     weight_strategy: str = None
     learning_based: bool = False
+    auc_type: str = None
 
 
 Base = declarative_base()
@@ -134,8 +135,8 @@ def remove_attribute(filepath: str, attribute: str):
 # TODO: Add option to read classpath from the config file
 def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: ExperimentSetParameters,
                     parameters: GeneralParamenters, start_mode: str = "1") -> Experiment:
-    filepath, measure, strategy, weight, learning_based = astuple(exp_parameters)
-    clustered_file_path = filepath.replace(".arff", f"_{measure}_{strategy}_{weight}_clustered.arff")
+    filepath, measure, strategy, weight, learning_based, auc_type = astuple(exp_parameters)
+    clustered_file_path = filepath.replace(".arff", f"_{measure}_{strategy}_{weight}_{auc_type}_clustered.arff")
 
     command = ["java", "-Xmx8192m"]
 
@@ -161,6 +162,9 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
             distance_function = f"{distance_function} -n"
     else:
         distance_function = f"weka.core.{measure}"
+
+    if exp_parameters.auc_type is not None:
+        distance_function = f"{distance_function} -a {auc_type}"
 
     if not set_parameters.initial:
         distance_function = f"\"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} " \
@@ -223,12 +227,12 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
 
 
 def copy_files(exp_params: ExperimentParameters):
-    filepath, measure, strategy, weight, learning_based = astuple(exp_params)
+    filepath, measure, strategy, weight, learning_based, auc = astuple(exp_params)
     path, file = filepath.rsplit("/", 1)
     filename = file.split(".")[0]
 
     if learning_based:
-        new_folder_path = f"{path}/{filename}_{measure}_{strategy}_{weight}"
+        new_folder_path = f"{path}/{filename}_{measure}_{strategy}_{weight}_{auc}"
     else:
         new_folder_path = f"{path}/{filename}_{measure}"
 
@@ -236,7 +240,7 @@ def copy_files(exp_params: ExperimentParameters):
     new_filepath = f"{new_folder_path}/{file}"
     copyfile(filepath, new_filepath)
 
-    old_clustered_filepath = f"{path}/{filename}_{measure}_{strategy}_{weight}_clustered.arff"
+    old_clustered_filepath = f"{path}/{filename}_{measure}_{strategy}_{weight}_{auc}_clustered.arff"
     new_clustered_filepath = f"{new_folder_path}/{filename}.clus"
     copyfile(old_clustered_filepath, new_clustered_filepath)
     os.remove(old_clustered_filepath)
@@ -282,12 +286,13 @@ def format_seconds(seconds: float) -> str:
 
 
 def do_single_experiment(item_fullpath: str, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
-                         params: GeneralParamenters) -> Experiment:
+                         params: GeneralParamenters, auc_type: str = None) -> Experiment:
     if weight is None:
         exp_params = ExperimentParameters(filepath=item_fullpath, measure=strategy)
     else:
         exp_params = ExperimentParameters(filepath=item_fullpath, measure="LearningBasedDissimilarity",
-                                          strategy=strategy, weight_strategy=weight, learning_based=True)
+                                          strategy=strategy, weight_strategy=weight, learning_based=True,
+                                          auc_type=auc_type)
 
     exp = cluster_dataset(exp_params, set_parameters, params)
 
