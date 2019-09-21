@@ -2,18 +2,19 @@ import argparse
 import configparser
 import json
 import multiprocessing
-import os
 import subprocess
-import time
 from dataclasses import dataclass, astuple
 from datetime import datetime
-from itertools import product
+from pathlib import Path
 from shutil import copyfile, rmtree
+from typing import Tuple
 from zipfile import ZipFile, ZIP_BZIP2
 
 import git
 import math
 import requests
+import time
+from itertools import product
 from openpyxl import Workbook
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
@@ -22,8 +23,8 @@ from sty import fg, ef, rs, RgbFg
 
 
 @dataclass
-class GeneralParamenters:
-    directory: str
+class GeneralParameters:
+    directory: Path
     verbose: bool
     classpath: str = None
     measure_calculator_path: str = None
@@ -42,7 +43,7 @@ class ExperimentSetParameters:
 
 @dataclass
 class ExperimentParameters:
-    filepath: str
+    filepath: Path
     measure: str
     strategy: str = None
     weight_strategy: str = None
@@ -86,8 +87,8 @@ class ExperimentSet(Base):
     experiments = relationship("Experiment", order_by=Experiment.id, back_populates="set")
 
 
-def get_number_of_clusters(filepath: str):
-    with open(filepath) as file:
+def get_number_of_clusters(filepath: Path):
+    with filepath.open("r") as file:
         for line in file:
             line_upper = line.upper()
             if line_upper.startswith("@ATTRIBUTE") and ("CLASS" in line_upper or "CLUSTER" in line_upper):
@@ -97,11 +98,11 @@ def get_number_of_clusters(filepath: str):
                 raise Exception("Could not found Class or Cluster attribute")
 
 
-def remove_attribute(filepath: str, attribute: str):
+def remove_attribute(filepath: Path, attribute: str):
     attributes = []
     data = []
     permitted_indexes = []
-    with open(filepath) as file:
+    with filepath.open("r") as file:
         relation_name = file.readline()
         data_processing = False
         i = 0
@@ -120,7 +121,7 @@ def remove_attribute(filepath: str, attribute: str):
                 line_data = [x.lstrip() for x in line.split(',')]
                 data.append(line_data)
 
-    with open(filepath, "w") as new_file:
+    with filepath.open("w") as new_file:
         new_file.write(relation_name)
         for item in attributes:
             new_file.write(item)
@@ -134,9 +135,11 @@ def remove_attribute(filepath: str, attribute: str):
 
 # TODO: Add option to read classpath from the config file
 def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: ExperimentSetParameters,
-                    parameters: GeneralParamenters, start_mode: str = "1") -> Experiment:
-    filepath, measure, strategy, weight, learning_based, auc_type = astuple(exp_parameters)
-    clustered_file_path = filepath.replace(".arff", f"_{measure}_{strategy}_{weight}_{auc_type}_clustered.arff")
+                    parameters: GeneralParameters, start_mode: str = "1") -> Experiment:
+    _, measure, strategy, weight, learning_based, auc_type = astuple(exp_parameters)
+    filepath = exp_parameters.filepath
+    clustered_name = filepath.name.replace(".arff", f"_{measure}_{strategy}_{weight}_{auc_type}_clustered.arff")
+    clustered_file_path = filepath.with_name(clustered_name)
 
     command = ["java", "-Xmx8192m"]
 
@@ -177,9 +180,9 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
                 f"-num-slots {math.floor(num_procs / 3)} -S 10"
     command.append(clusterer)
     command.append("-i")
-    command.append(filepath)
+    command.append(str(filepath))
     command.append("-o")
-    command.append(clustered_file_path)
+    command.append(str(clustered_file_path))
     command.append("-I")
     command.append("Last")
 
@@ -204,51 +207,52 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
         number_of_clusters = get_number_of_clusters(clustered_file_path)
         print(f"Finished clustering dataset {filepath} with {identifier}")
     else:
-        if os.path.exists(clustered_file_path):
-            os.remove(clustered_file_path)
+        if clustered_file_path.exists():
+            clustered_file_path.unlink()
 
         if start_mode == "1":
             print(f"{fg.orange}There was an error running weka with k-means++ mode, trying with classic mode{fg.rs}")
             return cluster_dataset(exp_parameters, set_parameters, parameters, start_mode="0")
         else:
-            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.rsplit('/')[-1]} and the" +
+            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.name} and the" +
                             f" following command{ef.italic} {' '.join(result.args)}{rs.italic}")
 
     if start_mode == "1":
         return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
-                          time_taken=end - start, k_means_plusplus=True, file_name=filepath,
+                          time_taken=end - start, k_means_plusplus=True, file_name=filepath.name,
                           number_of_classes=num_classes, number_of_clusters=number_of_clusters,
                           start_time=start_dt, comments="")
     else:
         return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
-                          time_taken=end - start, k_means_plusplus=False, file_name=filepath,
+                          time_taken=end - start, k_means_plusplus=False, file_name=filepath.name,
                           number_of_classes=num_classes, number_of_clusters=number_of_clusters,
                           start_time=start_dt, comments="")
 
 
-def copy_files(exp_params: ExperimentParameters):
-    filepath, measure, strategy, weight, learning_based, auc = astuple(exp_params)
-    path, file = filepath.rsplit("/", 1)
-    filename = file.split(".")[0]
+def copy_files(exp_params: ExperimentParameters) -> Tuple[Path, Path]:
+    _, measure, strategy, weight, learning_based, auc = astuple(exp_params)
+    filepath = exp_params.filepath
+    path: Path = filepath.parent
+    file, filename = filepath.name, filepath.stem
 
     if learning_based:
-        new_folder_path = f"{path}/{filename}_{measure}_{strategy}_{weight}_{auc}"
+        new_folder_path = path / f"{filename}_{measure}_{strategy}_{weight}_{auc}"
     else:
-        new_folder_path = f"{path}/{filename}_{measure}"
+        new_folder_path = path / f"{filename}_{measure}"
 
-    os.mkdir(new_folder_path)
-    new_filepath = f"{new_folder_path}/{file}"
-    copyfile(filepath, new_filepath)
+    new_folder_path.mkdir()
+    new_filepath = new_folder_path / file
+    copyfile(str(filepath), new_filepath)
 
-    old_clustered_filepath = f"{path}/{filename}_{measure}_{strategy}_{weight}_{auc}_clustered.arff"
-    new_clustered_filepath = f"{new_folder_path}/{filename}.clus"
-    copyfile(old_clustered_filepath, new_clustered_filepath)
-    os.remove(old_clustered_filepath)
+    old_clustered_filepath = path / f"{filename}_{measure}_{strategy}_{weight}_{auc}_clustered.arff"
+    new_clustered_filepath = new_folder_path / f"{filename}.clus"
+    copyfile(str(old_clustered_filepath), new_clustered_filepath)
+    old_clustered_filepath.unlink()
     return new_filepath, new_clustered_filepath
 
 
-def get_f_measure(filepath: str, clustered_filepath: str, exe_path: str = None, verbose: bool = False) -> str:
-    command = ["MeasuresComparator.exe", "-c", clustered_filepath, "-r", filepath]
+def get_f_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, verbose: bool = False) -> str:
+    command = ["MeasuresComparator.exe", "-c", str(clustered_filepath), "-r", str(filepath)]
     if exe_path is not None:
         command[0] = exe_path
     start = time.time()
@@ -285,12 +289,12 @@ def format_seconds(seconds: float) -> str:
         return f"{seconds} seconds"
 
 
-def do_single_experiment(item_fullpath: str, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
-                         params: GeneralParamenters, auc_type: str = None) -> Experiment:
+def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
+                         params: GeneralParameters, auc_type: str = None) -> Experiment:
     if weight is None:
-        exp_params = ExperimentParameters(filepath=item_fullpath, measure=strategy)
+        exp_params = ExperimentParameters(filepath=item, measure=strategy)
     else:
-        exp_params = ExperimentParameters(filepath=item_fullpath, measure="LearningBasedDissimilarity",
+        exp_params = ExperimentParameters(filepath=item, measure="LearningBasedDissimilarity",
                                           strategy=strategy, weight_strategy=weight, learning_based=True,
                                           auc_type=auc_type)
 
@@ -305,7 +309,7 @@ def do_single_experiment(item_fullpath: str, strategy: str, weight: str, set_par
     return exp
 
 
-def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParamenters):
+def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParameters):
     if set_params.alternate:
 
         measures = ["Eskin", "Gambaryan", "Goodall", "Lin", "OccurenceFrequency", "InverseOccurenceFrequency",
@@ -325,7 +329,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
-    code_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+    code_directory = Path.cwd().parent
     repo = git.Repo(code_directory)
 
     description = f"{set_params.description}"
@@ -333,21 +337,19 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
         description = f"{description} using {set_params.weight} as decision weight, doing {set_params.strategy} when " \
                       f"weight is low and multiplying by {set_params.multiplier}"
 
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=params.directory, commit=repo.head.object.hexsha,
+    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit=repo.head.object.hexsha,
                             description=description)
     session.add(exp_set)
     session.commit()
 
     start = time.time()
-    root_dir = os.path.abspath(params.directory)
     i = 0
     pool = multiprocessing.Pool(math.floor(multiprocessing.cpu_count() / 2))
-    for item in os.listdir(root_dir):
-        if item.rsplit('.', 1)[-1] == "arff" and "clustered" not in item:
-            item_fullpath = os.path.join(root_dir, item)
+    for item in params.directory.iterdir():
+        if item.suffix == "arff" and "clustered" not in item.stem:
             try:
                 sets = pool.starmap(do_single_experiment,
-                                    [(item_fullpath, strategy, weight, set_params, params) for strategy, weight in
+                                    [(item, strategy, weight, set_params, params) for strategy, weight in
                                      measures])
                 exp_set.experiments.extend(sets)
                 session.commit()
@@ -375,7 +377,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
 
 
-def full_experiments(params: GeneralParamenters):
+def full_experiments(params: GeneralParameters):
     clean_experiments(params.directory)
     set_params = ExperimentSetParameters(initial=True, description="Initial Learning Based")
     do_experiment_set(set_params, params)
@@ -404,29 +406,25 @@ def full_experiments(params: GeneralParamenters):
                 clean_experiments(params.directory)
 
 
-def clean_experiments(directory: str):
-    root_dir = os.path.abspath(directory)
-    for item in os.listdir(root_dir):
-        item_full_path = os.path.join(root_dir, item)
-        if os.path.isdir(item_full_path):
-            rmtree(item_full_path)
+def clean_experiments(directory: Path):
+    for item in directory.iterdir():
+        if item.is_dir():
+            rmtree(item.resolve())
             continue
         if "clustered" in item:
-            os.remove(item_full_path)
+            item.unlink()
 
 
-def save_results(directory: str, filename: str):
-    root_dir = os.path.abspath(directory)
-    with ZipFile(os.path.join(root_dir, filename), 'w', compression=ZIP_BZIP2) as zipfile:
-        for directory in os.listdir(root_dir):
-            dir_full_path = os.path.join(root_dir, directory)
-            if os.path.isdir(dir_full_path):
-                zipfile.write(dir_full_path, arcname=directory)
-                for file in os.listdir(dir_full_path):
-                    zipfile.write(os.path.join(dir_full_path, file), arcname=os.path.join(directory, file))
+def save_results(base_directory: Path, filename: str):
+    with ZipFile(base_directory / filename, 'w', compression=ZIP_BZIP2) as zipfile:
+        for directory in base_directory.iterdir():
+            if directory.is_dir():
+                zipfile.write(directory.resolve(), arcname=directory.name)
+                for file in directory.iterdir():
+                    zipfile.write(file.resolve(), arcname=file.relative_to(base_directory))
 
 
-def create_report(experiment_set: int, base_path: str = ""):
+def create_report(experiment_set: int, base_path: Path = Path(".")):
     wb = Workbook()
     ws = wb.active
     engine = create_engine('sqlite:///results.db')
@@ -464,9 +462,9 @@ def create_report(experiment_set: int, base_path: str = ""):
         ws.cell(row=row + 3, column=i + column + 2, value=f"=AVERAGE({item}2:{item}{row + 1})")
         ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
 
-    save_path = os.path.join(base_path, "results.xlsx")
+    save_path = base_path / "results.xlsx"
     print(f"{fg.green}Saving report to {save_path}{fg.rs}")
-    wb.save(save_path)
+    wb.save(str(save_path))
 
 
 def main():
@@ -487,16 +485,22 @@ def main():
     args = parser.parse_args()
 
     # TODO: Read a single file
-    if not os.path.isdir(args.directory):
+    directory = Path(args.directory)
+    if not directory.is_dir():
         print(f"{fg.red}The selected path is not a directory{fg.rs}")
         exit(1)
 
-    params = GeneralParamenters(args.directory, args.verbose, args.cp, args.measure_calculator_path)
+    directory = directory.resolve()
+    params = GeneralParameters(directory=directory, verbose=args.verbose, classpath=args.cp,
+                               measure_calculator_path=args.measure_calculator_path)
     if args.full:
         print(f"{fg.red}DOING ALL EXPERIMENTS{fg.rs}")
         print(f"{fg.green}Go for a coffee{fg.rs}")
         full_experiments(params)
     else:
+        results_archive_name = f"Results_single_alt_{args.alternate_analysis}.zip"
+        save_results(params.directory, results_archive_name)
+        clean_experiments(params.directory)
         set_params = ExperimentSetParameters(alternate=args.alternate_analysis)
         do_experiment_set(set_params, params)
 
