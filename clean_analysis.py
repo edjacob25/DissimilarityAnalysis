@@ -1,6 +1,7 @@
 import argparse
-import os
-from shutil import rmtree
+from pathlib import Path
+
+from common import clean_experiments
 
 parser = argparse.ArgumentParser(description='Cleans the result files and folders of a directory containing categorical'
                                              ' datasets')
@@ -8,15 +9,9 @@ parser.add_argument('directory', help="Directory in which the cleaned datasets a
 
 args = parser.parse_args()
 
-if not os.path.isdir(args.directory):
+path = Path(args.directory)
+if not path.is_dir():
     print("The selected path is not a directory")
     exit(1)
 
-root_dir = os.path.abspath(args.directory)
-for item in os.listdir(root_dir):
-    item_full_path = os.path.join(root_dir, item)
-    if os.path.isdir(item_full_path):
-        rmtree(item_full_path)
-        continue
-    if "clustered" in item:
-        os.remove(item_full_path)
+clean_experiments(path)

@@ -7,16 +7,15 @@ import traceback
 from dataclasses import astuple
 from datetime import datetime
 from itertools import product
-from shutil import copyfile, rmtree
+from shutil import copyfile
 from typing import Tuple
-from zipfile import ZipFile, ZIP_BZIP2
 
 import git
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sty import fg, ef, rs, RgbFg
 
-from common import format_time_lapse, send_notification, get_config, get_platform_separator
+from common import *
 from data_types import *
 
 fg.set_style('orange', RgbFg(255, 150, 50))
@@ -321,24 +320,6 @@ def full_experiments(params: GeneralParameters):
                     results_archive_name = results_archive_name.replace(".zip", "_n.zip")
                 save_results(params.directory, results_archive_name)
                 clean_experiments(params.directory)
-
-
-def clean_experiments(directory: Path):
-    for item in directory.iterdir():
-        if item.is_dir():
-            rmtree(item.resolve())
-            continue
-        if "clustered" in item:
-            item.unlink()
-
-
-def save_results(base_directory: Path, filename: str):
-    with ZipFile(base_directory / filename, 'w', compression=ZIP_BZIP2) as zipfile:
-        for directory in base_directory.iterdir():
-            if directory.is_dir():
-                zipfile.write(directory.resolve(), arcname=directory.name)
-                for file in directory.iterdir():
-                    zipfile.write(file.resolve(), arcname=file.relative_to(base_directory))
 
 
 def main():

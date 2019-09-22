@@ -5,6 +5,7 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
 from shutil import rmtree
+from zipfile import ZipFile, ZIP_BZIP2
 
 import requests
 from dateutil.relativedelta import relativedelta
@@ -61,6 +62,24 @@ def clean_auto_weka(folder: str = get_config("ROUTES", "temp_files_path")):
             pass
         except FileNotFoundError:
             pass
+
+
+def clean_experiments(directory: Path):
+    for item in directory.iterdir():
+        if item.is_dir():
+            rmtree(item.resolve())
+            continue
+        if "clustered" in item:
+            item.unlink()
+
+
+def save_results(base_directory: Path, filename: str):
+    with ZipFile(base_directory / filename, 'w', compression=ZIP_BZIP2) as zipfile:
+        for directory in base_directory.iterdir():
+            if directory.is_dir():
+                zipfile.write(directory.resolve(), arcname=directory.name)
+                for file in directory.iterdir():
+                    zipfile.write(file.resolve(), arcname=file.relative_to(base_directory))
 
 
 def get_platform_separator() -> str:
