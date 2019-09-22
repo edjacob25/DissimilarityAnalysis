@@ -1,11 +1,9 @@
 import argparse
-import math
 import multiprocessing
 import subprocess
 import time
 import traceback
 from dataclasses import astuple
-from datetime import datetime
 from itertools import product
 from shutil import copyfile
 from typing import Tuple
@@ -132,7 +130,14 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
     if start_mode == "0":
         identifier = f"{identifier} classic mode"
 
-    print(result.stderr.decode("utf-8"))
+    write_results(filepath, result)
+    errors = result.stderr.decode("utf-8").splitlines()
+    if len(errors) > 40:
+        print(f"{fg.orange}Errors too long, showing the last 40 lines:{fg.rs}")
+        print("\n".join(errors[-40:]))
+    else:
+        print(f"{fg.orange}Showing errors:{fg.rs}")
+        print("\n".join(errors))
     if parameters.verbose:
         print(result.stdout.decode("utf-8"))
         print(f"Clustering dataset {filepath} with {identifier} took {end - start}")

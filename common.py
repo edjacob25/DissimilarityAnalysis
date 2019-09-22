@@ -5,6 +5,7 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
 from shutil import rmtree
+from subprocess import CompletedProcess
 from zipfile import ZipFile, ZIP_BZIP2
 
 import requests
@@ -69,7 +70,7 @@ def clean_experiments(directory: Path):
         if item.is_dir():
             rmtree(item.resolve())
             continue
-        if "clustered" in item:
+        if "clustered" in item.name or "log" in item.nameq:
             item.unlink()
 
 
@@ -86,3 +87,14 @@ def get_platform_separator() -> str:
     if os.name is not "posix":
         return ";"
     return ":"
+
+
+def write_results(path: Path, result: CompletedProcess):
+    name = path.stem
+    err_path = path.with_name(f"{name}_err.log")
+    log_path = path.with_name(f"{name}.log")
+
+    with err_path.open("w") as err_file:
+        err_file.write(result.stderr.decode("utf-8"))
+    with log_path.open("w") as log_file:
+        log_file.write(result.stdout.decode("utf-8"))
