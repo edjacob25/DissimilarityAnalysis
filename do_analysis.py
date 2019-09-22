@@ -193,8 +193,11 @@ def copy_files(exp_params: ExperimentParameters) -> Tuple[Path, Path]:
 
 def get_f_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, verbose: bool = False) -> str:
     command = ["MeasuresComparator.exe", "-c", str(clustered_filepath), "-r", str(filepath)]
+    comparator_route = get_config("ROUTES", "evaluator_path")
     if exe_path is not None:
         command[0] = exe_path
+    elif not comparator_route.isspace():
+        command[0] = comparator_route
     start = time.time()
     result = subprocess.run(command, stdout=subprocess.PIPE)
     end = time.time()
