@@ -268,7 +268,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     i = 0
     pool = multiprocessing.Pool(math.floor(multiprocessing.cpu_count() / 2))
     for item in params.directory.iterdir():
-        if item.suffix == "arff" and "clustered" not in item.stem:
+        if item.suffix == ".arff" and "clustered" not in item.stem:
             try:
                 sets = pool.starmap(do_single_experiment,
                                     [(item, strategy, weight, set_params, params) for strategy, weight in
@@ -343,7 +343,7 @@ def do_selected_exps(params: GeneralParameters):
     start = time.time()
     i = 0
     for item in params.directory.iterdir():
-        if item.suffix == "arff" and "clustered" not in item.stem:
+        if item.suffix == ".arff" and "clustered" not in item.stem:
             try:
                 result = do_single_experiment(item, "E", "N", set_params, params)
                 exp_set.experiments.append(result)
