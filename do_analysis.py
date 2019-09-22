@@ -3,9 +3,8 @@ import configparser
 import json
 import multiprocessing
 import subprocess
-from dataclasses import dataclass, astuple
+from dataclasses import astuple
 from datetime import datetime
-from pathlib import Path
 from shutil import copyfile, rmtree
 from typing import Tuple
 from zipfile import ZipFile, ZIP_BZIP2
@@ -16,75 +15,15 @@ import requests
 import time
 from itertools import product
 from openpyxl import Workbook
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sty import fg, ef, rs, RgbFg
 
-
-@dataclass
-class GeneralParameters:
-    directory: Path
-    verbose: bool
-    classpath: str = None
-    measure_calculator_path: str = None
-    normalize_dissimilarity: bool = False
+from common import format_time_lapse
+from data_types import *
 
 
-@dataclass
-class ExperimentSetParameters:
-    initial: bool = True
-    alternate: bool = False
-    strategy: str = None
-    multiplier: str = None
-    weight: str = None
-    description: str = ""
-
-
-@dataclass
-class ExperimentParameters:
-    filepath: Path
-    measure: str
-    strategy: str = None
-    weight_strategy: str = None
-    learning_based: bool = False
-    auc_type: str = None
-
-
-Base = declarative_base()
 fg.set_style('orange', RgbFg(255, 150, 50))
-
-
-class Experiment(Base):
-    __tablename__ = 'experiment'
-
-    id = Column(Integer, primary_key=True)
-    method = Column(String)
-    f_score = Column(Float)
-    command_sent = Column(String)
-    time_taken = Column(Float)
-    k_means_plusplus = Column(Boolean)
-    file_name = Column(String)
-    comments = Column(String)
-    number_of_classes = Column(Integer)
-    number_of_clusters = Column(Integer)
-    start_time = Column(DateTime)
-
-    set_id = Column(Integer, ForeignKey('experiment_set.id'))
-    set = relationship("ExperimentSet", back_populates="experiments")
-
-
-class ExperimentSet(Base):
-    __tablename__ = 'experiment_set'
-
-    id = Column(Integer, primary_key=True)
-    time = Column(DateTime)
-    time_taken = Column(Float)
-    number_of_datasets = Column(Integer)
-    base_directory = Column(String)
-    commit = Column(String)
-    description = Column(String)
-    experiments = relationship("Experiment", order_by=Experiment.id, back_populates="set")
 
 
 def get_number_of_clusters(filepath: Path):
@@ -279,16 +218,6 @@ def send_notification(message: str, title: str):
     requests.post("https://api.pushbullet.com/v2/pushes", headers=headers, data=json.dumps(data))
 
 
-def format_seconds(seconds: float) -> str:
-    seconds = math.fabs(seconds)
-    if seconds > 3600:
-        return f"{seconds / 3600} hours"
-    elif seconds > 60:
-        return f"{seconds / 60} minutes"
-    else:
-        return f"{seconds} seconds"
-
-
 def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
                          params: GeneralParameters, auc_type: str = None) -> Experiment:
     if weight is None:
@@ -373,7 +302,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     session.commit()
     # create_report(exp_set.id, base_path=root_dir)
 
-    time_str = format_seconds(end - start)
+    time_str = format_time_lapse(start, end)
     send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
 
 
