@@ -7,6 +7,7 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import CompletedProcess
 from zipfile import ZipFile, ZIP_BZIP2
+from time import sleep
 
 import requests
 from dateutil.relativedelta import relativedelta
@@ -63,6 +64,16 @@ def clean_auto_weka(folder: str = get_config("ROUTES", "temp_files_path")):
             pass
         except FileNotFoundError:
             pass
+
+
+def clean_temp(seconds: int = 20):
+    while True:
+        try:
+            clean_auto_weka()
+            sleep(seconds)
+        except KeyboardInterrupt:
+            print("Exciting cleaning")
+            break
 
 
 def clean_experiments(directory: Path):
