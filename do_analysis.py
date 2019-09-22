@@ -155,7 +155,7 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
             return cluster_dataset(exp_parameters, set_parameters, parameters, start_mode="0")
         else:
             raise Exception(f"{fg.red}There was a error running weka with the file {filepath.name} and the" +
-                            f" following command{ef.italic} {' '.join(result.args)}{rs.italic}")
+                            f" following command {' '.join(result.args)}{fg.rs}")
 
     if start_mode == "1":
         return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
@@ -356,11 +356,11 @@ def do_selected_exps(params: GeneralParameters):
                 session.rollback()
                 print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
                 continue
-            except Exception as exc:
+            except Exception:
                 session.rollback()
-                print(exc)
+                #print(exc)
                 traceback.print_exc()
-                print(f"{fg.red}Skipping file {item}{fg.rs}")
+                print(f"{fg.orange}Skipping file {item}{fg.rs}")
                 continue
             finally:
                 print("\n\n")
