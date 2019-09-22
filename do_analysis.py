@@ -1,27 +1,23 @@
 import argparse
-import configparser
-import json
+import math
 import multiprocessing
 import subprocess
+import time
+import traceback
 from dataclasses import astuple
 from datetime import datetime
+from itertools import product
 from shutil import copyfile, rmtree
 from typing import Tuple
 from zipfile import ZipFile, ZIP_BZIP2
 
 import git
-import math
-import requests
-import time
-from itertools import product
-from openpyxl import Workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sty import fg, ef, rs, RgbFg
 
-from common import format_time_lapse
+from common import format_time_lapse, send_notification, get_config, get_platform_separator
 from data_types import *
-
 
 fg.set_style('orange', RgbFg(255, 150, 50))
 
@@ -208,14 +204,6 @@ def get_f_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None
         print(f"{fg.green}Finished getting f-measure for {fg.blue}{filepath}{fg.green}, f-measure -> {fg.blue}"
               f"{text_result}{fg.rs}")
         return text_result
-
-
-def send_notification(message: str, title: str):
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-    data = {"body": message, "title": title, "type": "note"}
-    headers = {"Content-Type": "application/json", "Access-Token": config["SECRETS"]["Pushbullet_token"]}
-    requests.post("https://api.pushbullet.com/v2/pushes", headers=headers, data=json.dumps(data))
 
 
 def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
