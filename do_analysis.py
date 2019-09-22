@@ -289,7 +289,6 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     exp_set.time_taken = end - start
     exp_set.number_of_datasets = i
     session.commit()
-    # create_report(exp_set.id, base_path=root_dir)
 
     time_str = format_time_lapse(start, end)
     send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
@@ -340,49 +339,6 @@ def save_results(base_directory: Path, filename: str):
                 zipfile.write(directory.resolve(), arcname=directory.name)
                 for file in directory.iterdir():
                     zipfile.write(file.resolve(), arcname=file.relative_to(base_directory))
-
-
-def create_report(experiment_set: int, base_path: Path = Path(".")):
-    wb = Workbook()
-    ws = wb.active
-    engine = create_engine('sqlite:///Results/results.db')
-    session_class = sessionmaker(bind=engine)
-    session = session_class()
-    headers = []
-    row = 1
-    last = ""
-    column = 2
-    for experiment in session.query(Experiment).filter_by(set_id=experiment_set).order_by(Experiment.file_name):
-        if last != experiment.file_name:
-            column = 2
-            row += 1
-            last = experiment.file_name
-            ws.cell(row=row, column=1, value=experiment.file_name.rsplit('/')[-1])
-        if experiment.method not in headers:
-            headers.append(experiment.method)
-        ws.cell(row=row, column=column, value=experiment.f_score)
-        column += 1
-
-    for i, header in enumerate(headers):
-        ws.cell(row=1, column=i + 2, value=header)
-        ws.cell(row=1, column=i + column + 2, value=header)
-
-    for i in range(2, row + 1):
-        base = ord('A') + column - 2
-        for j in range(column - 2):
-            item = ord('B') + j
-            ws.cell(row=i, column=j + column + 2, value=f"=RANK.AVG({chr(item)}{i},$B{i}:${chr(base)}{i})")
-
-    start = chr(ord('B') + column)
-    end = chr(ord('B') + column + column - 3)
-    for i in range(column - 2):
-        item = chr(ord('B') + i + column)
-        ws.cell(row=row + 3, column=i + column + 2, value=f"=AVERAGE({item}2:{item}{row + 1})")
-        ws.cell(row=row + 4, column=i + column + 2, value=f"=RANK({item}{row + 3},${start}{row + 3}:${end}{row + 3},1)")
-
-    save_path = base_path / "results.xlsx"
-    print(f"{fg.green}Saving report to {save_path}{fg.rs}")
-    wb.save(str(save_path))
 
 
 def main():
