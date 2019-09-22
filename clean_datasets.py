@@ -1,7 +1,8 @@
-import os
 import argparse
-from openpyxl import Workbook
+import os
 from shutil import copyfile, rmtree
+
+from openpyxl import Workbook
 
 
 def modify_file(filename, worksheet=None, index=0, base_dir=None):

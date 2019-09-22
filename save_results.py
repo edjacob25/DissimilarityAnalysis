@@ -1,8 +1,6 @@
-from zipfile import ZipFile, ZIP_LZMA, ZIP_DEFLATED, ZIP_BZIP2
-
 import argparse
 import os
-from shutil import rmtree
+from zipfile import ZipFile, ZIP_BZIP2
 
 parser = argparse.ArgumentParser(description='Saves the result files of a experiment to a zip file')
 parser.add_argument('directory', help="Directory in which the cleaned datasets are")
