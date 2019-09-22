@@ -81,9 +81,10 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
     if parameters.classpath is not None:
         java_classpath = parameters.classpath
     else:
-        # Default classpath
-        java_classpath = "/mnt/c/Program Files/Weka-3-9/weka.jar:/home/jacob/wekafiles/packages" \
-                         "/SimmilarityMeasuresForCategoricalData/DissimilarityMeasures-0.1.jar"
+        separator = get_platform_separator()
+        java_classpath = f"{get_config('ROUTES', 'weka_jar_path')}{separator}" \
+                         f"{get_config('ROUTES', 'autoweka_jar_path')}{separator}" \
+                         f"{get_config('ROUTES', 'dissimilarity_jar_path')}"
     command.append("-cp")
     command.append(java_classpath)
 
