@@ -325,7 +325,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
         weights = ["N", "K", "A"]
         measures = list(product(strategies, weights))
 
-    engine = create_engine('sqlite:///results.db')
+    engine = create_engine('sqlite:///Results/results.db')
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
@@ -427,7 +427,7 @@ def save_results(base_directory: Path, filename: str):
 def create_report(experiment_set: int, base_path: Path = Path(".")):
     wb = Workbook()
     ws = wb.active
-    engine = create_engine('sqlite:///results.db')
+    engine = create_engine('sqlite:///Results/results.db')
     session_class = sessionmaker(bind=engine)
     session = session_class()
     headers = []
