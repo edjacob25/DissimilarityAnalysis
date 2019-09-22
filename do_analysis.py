@@ -327,6 +327,50 @@ def full_experiments(params: GeneralParameters):
                 clean_experiments(params.directory)
 
 
+def do_selected_exps(params: GeneralParameters):
+    engine = create_engine('sqlite:///Results/results_testing.db')
+    Base.metadata.create_all(engine)
+    session_class = sessionmaker(bind=engine)
+    session = session_class()
+
+    description = f"Testing datasets with selected algorithms"
+
+    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit="",
+                            description=description)
+    session.add(exp_set)
+    session.commit()
+    set_params = ExperimentSetParameters(initial=True, description=description)
+    start = time.time()
+    i = 0
+    for item in params.directory.iterdir():
+        if item.suffix == "arff" and "clustered" not in item.stem:
+            try:
+                result = do_single_experiment(item, "E", "N", set_params, params)
+                exp_set.experiments.append(result)
+                session.commit()
+                i += 1
+            except KeyboardInterrupt:
+                session.rollback()
+                print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
+                continue
+            except Exception as exc:
+                session.rollback()
+                print(exc)
+                traceback.print_exc()
+                print(f"{fg.red}Skipping file {item}{fg.rs}")
+                continue
+            finally:
+                print("\n\n")
+
+    end = time.time()
+
+    exp_set.time_taken = end - start
+    exp_set.number_of_datasets = i
+    session.commit()
+    time_str = format_time_lapse(start, end)
+    send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Does the analysis of a directory containing categorical datasets')
     parser.add_argument('directory', help="Directory in which the cleaned datasets are")
@@ -339,6 +383,9 @@ def main():
     parser.add_argument("-s", "--save", help="Path to the f-measure calculator", action='store_true')
 
     parser.add_argument("--full", help="Whether to do all combinations, overrides --alternate-analysis",
+                        action='store_true')
+    parser.add_argument("--selected",
+                        help="Whether to do only a set of the experiments, overrides --alternate-analysis",
                         action='store_true')
     # TODO: Actually save the output of the commands
 
@@ -357,6 +404,10 @@ def main():
         print(f"{fg.red}DOING ALL EXPERIMENTS{fg.rs}")
         print(f"{fg.green}Go for a coffee{fg.rs}")
         full_experiments(params)
+
+    elif args.selected:
+        print(f"{fg.green}Doing selected experiments{fg.rs}")
+        do_selected_exps(params)
     else:
         results_archive_name = f"Results_single_alt_{args.alternate_analysis}.zip"
         save_results(params.directory, results_archive_name)
