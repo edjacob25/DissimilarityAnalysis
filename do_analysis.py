@@ -142,7 +142,7 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
         print(result.stdout.decode("utf-8"))
         print(f"Clustering dataset {filepath} with {identifier} took {end - start}")
 
-    if "Exception" not in result.stderr.decode("utf-8"):
+    if clustered_file_path.stat().st_size >= filepath.stat().st_size:
         remove_attribute(clustered_file_path, "Class")
         number_of_clusters = get_number_of_clusters(clustered_file_path)
         print(f"Finished clustering dataset {filepath} with {identifier}")
