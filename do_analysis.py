@@ -6,12 +6,12 @@ import traceback
 from dataclasses import astuple
 from itertools import product
 from shutil import copyfile
-from typing import Tuple
+from typing import Tuple, Optional
 
 import git
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sty import fg, ef, rs, RgbFg
+from sty import fg, RgbFg
 
 from common import *
 from data_types import *
@@ -330,6 +330,20 @@ def full_experiments(params: GeneralParameters):
                 clean_experiments(params.directory)
 
 
+def do_experiment_guarded(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
+                         params: GeneralParameters, auc_type: str = None) -> Optional[Experiment]:
+    try:
+        return do_single_experiment(item, strategy, weight, set_parameters, params, auc_type)
+    except KeyboardInterrupt:
+        print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
+        return None
+    except Exception:
+        traceback.print_exc()
+        print(f"{fg.orange}Skipping file {item}{fg.rs}")
+        return None
+    finally:
+        print("\n\n")
+
 
 def do_auc_exps(params: GeneralParameters):
     auc_types = ["N", "S", "W"]
@@ -395,33 +409,27 @@ def do_selected_exps(params: GeneralParameters):
     session.commit()
     set_params = ExperimentSetParameters(initial=True, description=description)
     start = time.time()
-    i = 0
     items = [x for x in params.directory.iterdir() if x.suffix == ".arff" and "clustered" not in x.stem]
-    for item in items:
-        try:
-            result = do_single_experiment(item, "E", "N", set_params, params)
-            exp_set.experiments.append(result)
-            session.commit()
-            i += 1
-        except KeyboardInterrupt:
-            session.rollback()
-            print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
-            continue
-        except Exception:
-            session.rollback()
-            traceback.print_exc()
-            print(f"{fg.orange}Skipping file {item}{fg.rs}")
-            continue
-        finally:
-            print("\n\n")
 
+    pool = multiprocessing.Pool(2, init_worker)
+    results =[]
+    try:
+        sets = pool.starmap(do_experiment_guarded, [(item, "E", "N", set_params, params) for item in items])
+        results = [x for x in sets if x is not None]
+        exp_set.experiments.extend(results)
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+        kill_java_procs()
+        print(f"{fg.orange}Ctrl-C used, stopped job{fg.rs}")
+    session.commit()
     end = time.time()
 
     exp_set.time_taken = end - start
-    exp_set.number_of_datasets = i
+    exp_set.number_of_datasets = len(results)
     session.commit()
     time_str = format_time_lapse(start, end)
-    send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
+    send_notification(f"It took {time_str} and processed {len(results)} datasets", "Analysis finished")
 
 
 def main():
