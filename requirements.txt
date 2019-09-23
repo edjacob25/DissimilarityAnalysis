@@ -1,3 +1,4 @@
+python-dateutil
 GitPython>=2.1.11
 jupyterlab>=1.0.2
 matplotlib>=3.1.0
