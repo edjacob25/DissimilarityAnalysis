@@ -330,6 +330,57 @@ def full_experiments(params: GeneralParameters):
                 clean_experiments(params.directory)
 
 
+
+def do_auc_exps(params: GeneralParameters):
+    auc_types = ["N", "S", "W"]
+
+    engine = create_engine('sqlite:///Results/results_auc.db')
+    Base.metadata.create_all(engine)
+    session_class = sessionmaker(bind=engine)
+    session = session_class()
+    code_directory = Path.cwd().parent
+    repo = git.Repo(code_directory)
+
+    description = f"Testing dissimilarity AUCs "
+
+    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit=repo.head.object.hexsha,
+                            description=description)
+    session.add(exp_set)
+    session.commit()
+    set_params = ExperimentSetParameters(initial=True, description="Learning Based")
+    start = time.time()
+    i = 0
+    pool = multiprocessing.Pool(math.floor(multiprocessing.cpu_count() / 2))
+    for item in params.directory.iterdir():
+        if item.suffix == ".arff" and "clustered" not in item.stem:
+            try:
+                sets = pool.starmap(do_single_experiment,
+                                    [(item, "E", "K", set_params, params, auc) for auc in auc_types])
+                exp_set.experiments.extend(sets)
+                session.commit()
+                i += 1
+            except KeyboardInterrupt:
+                session.rollback()
+                print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
+                continue
+            except Exception as exc:
+                session.rollback()
+                print(exc)
+                print(f"{fg.red}Skipping file {item}{fg.rs}")
+                continue
+            finally:
+                print("\n\n")
+
+    end = time.time()
+
+    exp_set.time_taken = end - start
+    exp_set.number_of_datasets = i
+    session.commit()
+
+    time_str = format_time_lapse(start, end)
+    send_notification(f"It took {time_str} and processed {i} datasets", "Analysis finished")
+
+
 def do_selected_exps(params: GeneralParameters):
     engine = create_engine('sqlite:///Results/results_testing.db')
     Base.metadata.create_all(engine)
