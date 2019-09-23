@@ -119,5 +119,5 @@ def init_worker():
 
 def kill_java_procs():
     for proc in psutil.process_iter():
-        if "java" == proc.name():
+        if "java" in proc.name():
             proc.kill()
