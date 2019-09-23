@@ -396,25 +396,24 @@ def do_selected_exps(params: GeneralParameters):
     set_params = ExperimentSetParameters(initial=True, description=description)
     start = time.time()
     i = 0
-    for item in params.directory.iterdir():
-        if item.suffix == ".arff" and "clustered" not in item.stem:
-            try:
-                result = do_single_experiment(item, "E", "N", set_params, params)
-                exp_set.experiments.append(result)
-                session.commit()
-                i += 1
-            except KeyboardInterrupt:
-                session.rollback()
-                print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
-                continue
-            except Exception:
-                session.rollback()
-                #print(exc)
-                traceback.print_exc()
-                print(f"{fg.orange}Skipping file {item}{fg.rs}")
-                continue
-            finally:
-                print("\n\n")
+    items = [x for x in params.directory.iterdir() if x.suffix == ".arff" and "clustered" not in x.stem]
+    for item in items:
+        try:
+            result = do_single_experiment(item, "E", "N", set_params, params)
+            exp_set.experiments.append(result)
+            session.commit()
+            i += 1
+        except KeyboardInterrupt:
+            session.rollback()
+            print(f"{fg.orange}The analysis of the file {item} was requested to be finished by using Ctrl-C{fg.rs}")
+            continue
+        except Exception:
+            session.rollback()
+            traceback.print_exc()
+            print(f"{fg.orange}Skipping file {item}{fg.rs}")
+            continue
+        finally:
+            print("\n\n")
 
     end = time.time()
 
