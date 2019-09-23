@@ -9,6 +9,8 @@ from subprocess import CompletedProcess
 from zipfile import ZipFile, ZIP_BZIP2
 from time import sleep
 
+import signal
+import psutil
 import requests
 from dateutil.relativedelta import relativedelta
 
@@ -94,12 +96,6 @@ def save_results(base_directory: Path, filename: str):
                     zipfile.write(file.resolve(), arcname=file.relative_to(base_directory))
 
 
-def get_platform_separator() -> str:
-    if os.name is not "posix":
-        return ";"
-    return ":"
-
-
 def write_results(path: Path, result: CompletedProcess):
     name = path.stem
     err_path = path.with_name(f"{name}_err.log")
@@ -109,3 +105,19 @@ def write_results(path: Path, result: CompletedProcess):
         err_file.write(result.stderr.decode("utf-8"))
     with log_path.open("w") as log_file:
         log_file.write(result.stdout.decode("utf-8"))
+
+
+def get_platform_separator() -> str:
+    if os.name is not "posix":
+        return ";"
+    return ":"
+
+
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def kill_java_procs():
+    for proc in psutil.process_iter():
+        if "java" == proc.name():
+            proc.kill()
