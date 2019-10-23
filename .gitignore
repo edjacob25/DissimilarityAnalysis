@@ -6,3 +6,4 @@ config.ini
 __pycache__
 *.sql
 *.log
+.idea/
