@@ -35,12 +35,10 @@ def main():
     dirs = [x for x in directory.iterdir() if x.is_dir()]
     for directory in dirs:
         base, clustered = directory.iterdir()
-        if len(clustered) > 1:
-            continue
         measure = get_measure(base, clustered, rand=args.rand, adjusted_rand=args.adjusted_rand)
-        _, distance = directory.name.split("_", 1)
+        distance = directory.name.replace(f"{base.stem}_", " ").replace("_", " ")
         num_classes = get_number_of_clusters(base)
-        number_of_clusters = get_number_of_clusters(num_classes)
+        number_of_clusters = get_number_of_clusters(clustered)
         exp = Experiment(method=distance, command_sent="",
                          time_taken=0, k_means_plusplus=True, file_name=base.name,
                          number_of_classes=num_classes, number_of_clusters=number_of_clusters,
