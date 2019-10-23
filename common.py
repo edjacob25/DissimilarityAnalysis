@@ -1,6 +1,9 @@
 import json
 import math
 import os
+import re
+import subprocess
+import time
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,7 +16,9 @@ import signal
 import psutil
 import requests
 from dateutil.relativedelta import relativedelta
+from sty import fg, RgbFg
 
+fg.set_style('orange', RgbFg(255, 150, 50))
 config = None
 
 
@@ -85,6 +90,46 @@ def clean_experiments(directory: Path):
             continue
         if "clustered" in item.name or "log" in item.name:
             item.unlink()
+
+
+def get_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, verbose: bool = False,
+                rand: bool = False, adjusted_rand: bool = False) -> str:
+    command = ["MeasuresComparator.exe", "-c", str(clustered_filepath), "-r", str(filepath)]
+    if rand:
+        command.append("--rand")
+    elif adjusted_rand:
+        command.append("--adjusted-rand")
+    comparator_route = get_config("ROUTES", "evaluator_path")
+    if exe_path is not None:
+        command[0] = exe_path
+    elif not comparator_route.isspace():
+        command[0] = comparator_route
+    start = time.time()
+    result = subprocess.run(command, stdout=subprocess.PIPE)
+    end = time.time()
+    text_result = result.stdout.decode('utf-8')
+
+    if result.returncode != 0:
+        print(f"{fg.red}Could not get F-Measure\nError ->{fg.rs} {text_result}")
+        raise Exception("Could not calculate f-measure")
+    else:
+        if verbose:
+            print(f"Calculating f-measure took {end - start}")
+        print(f"{fg.green}Finished getting measure for {fg.blue}{filepath}{fg.green}, measure -> {fg.blue}"
+              f"{text_result}{fg.rs}")
+        return text_result
+
+
+def get_number_of_clusters(filepath: Path):
+    with filepath.open("r") as file:
+        for line in file:
+            line_upper = line.upper()
+            pattern = re.compile(r"@ATTRIBUTE\s+(class|cluster)\s", re.IGNORECASE)
+            if pattern.search(line_upper):
+                clusters = line.split(" ", 2)[-1]
+                return len(clusters.split(","))
+            if line_upper.startswith("@DATA"):
+                raise Exception("Could not found Class or Cluster attribute")
 
 
 def save_results(base_directory: Path, filename: str):

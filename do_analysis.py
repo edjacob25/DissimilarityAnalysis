@@ -11,23 +11,9 @@ from typing import Tuple, Optional
 import git
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sty import fg, RgbFg
 
 from common import *
 from data_types import *
-
-fg.set_style('orange', RgbFg(255, 150, 50))
-
-
-def get_number_of_clusters(filepath: Path):
-    with filepath.open("r") as file:
-        for line in file:
-            line_upper = line.upper()
-            if line_upper.startswith("@ATTRIBUTE") and ("CLASS" in line_upper or "CLUSTER" in line_upper):
-                clusters = line.split(" ", 2)[-1]
-                return len(clusters.split(","))
-            if line_upper.startswith("@DATA"):
-                raise Exception("Could not found Class or Cluster attribute")
 
 
 def remove_attribute(filepath: Path, attribute: str):
@@ -191,29 +177,6 @@ def copy_files(exp_params: ExperimentParameters) -> Tuple[Path, Path]:
     return new_filepath, new_clustered_filepath
 
 
-def get_f_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, verbose: bool = False) -> str:
-    command = ["MeasuresComparator.exe", "-c", str(clustered_filepath), "-r", str(filepath)]
-    comparator_route = get_config("ROUTES", "evaluator_path")
-    if exe_path is not None:
-        command[0] = exe_path
-    elif not comparator_route.isspace():
-        command[0] = comparator_route
-    start = time.time()
-    result = subprocess.run(command, stdout=subprocess.PIPE)
-    end = time.time()
-    text_result = result.stdout.decode('utf-8')
-
-    if result.returncode != 0:
-        print(f"{fg.red}Could not get F-Measure\nError ->{fg.rs} {text_result}")
-        raise Exception("Could not calculate f-measure")
-    else:
-        if verbose:
-            print(f"Calculating f-measure took {end - start}")
-        print(f"{fg.green}Finished getting f-measure for {fg.blue}{filepath}{fg.green}, f-measure -> {fg.blue}"
-              f"{text_result}{fg.rs}")
-        return text_result
-
-
 def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
                          params: GeneralParameters, auc_type: str = None) -> Experiment:
     if weight is None:
@@ -227,9 +190,9 @@ def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters:
 
     new_filepath, new_clustered_filepath = copy_files(exp_params)
 
-    f_measure = get_f_measure(new_filepath, new_clustered_filepath,
-                              exe_path=params.measure_calculator_path,
-                              verbose=params.verbose)
+    f_measure = get_measure(new_filepath, new_clustered_filepath,
+                            exe_path=params.measure_calculator_path,
+                            verbose=params.verbose)
     exp.f_score = f_measure
     return exp
 
