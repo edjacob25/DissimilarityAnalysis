@@ -21,8 +21,8 @@ def main():
 
     directory = directory.resolve()
     params = GeneralParameters(directory=directory, verbose=False)
-
-    engine = create_engine('sqlite:///Results/results_rand.db')
+    db_name = "adjusted_rand" if args.adjusted_rand else "rand" if args.rand else "f_measure"
+    engine = create_engine(f'sqlite:///Results/results_{db_name}.db')
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
