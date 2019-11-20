@@ -88,7 +88,7 @@ def clean_experiments(directory: Path):
         if item.is_dir():
             rmtree(item.resolve())
             continue
-        if "clustered" in item.name or "log" in item.name:
+        if "clustered" in item.name or "log" in item.suffix:
             item.unlink()
 
 
