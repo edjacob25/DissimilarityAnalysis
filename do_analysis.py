@@ -137,7 +137,8 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
             clustered_file_path.unlink()
 
         if start_mode == "1":
-            print(f"{fg.orange}There was an error running weka with k-means++ mode, trying with classic mode{fg.rs}")
+            print(f"{fg.orange}There was an error running weka in file {filepath.name} with k-means++ mode, "
+                  f"trying with classic mode{fg.rs}")
             return cluster_dataset(exp_parameters, set_parameters, parameters, start_mode="0")
         else:
             raise Exception(f"{fg.red}There was a error running weka with the file {filepath.name} and the" +
