@@ -159,11 +159,11 @@ def plot_m2(x_values: pd.Series, y_values: pd.Series, common_groups: List[Set], 
     ax.set_ylabel(f'Average Adjusted Rand Index {label}', fontsize=14)
     ax.set_xlim(*x_limits)
     ax.set_ylim(*y_limits)
-    plt.title(f"Average {label} in F-Measure and Adjusted Rand", fontsize=22)
+    # plt.title(f"Average {label} in F-Measure and Adjusted Rand", fontsize=22)
 
     space_up = (y_limits[1] - y_limits[0]) / 75
     for i, txt in enumerate(x_values.index):
-        ax.text(x_values[i], y_values[i] + space_up, txt, ha='center', va='bottom')
+        ax.text(x_values[i], y_values[i] + space_up, txt, ha='center', va='bottom', fontsize=12)
 
     for group in common_groups:
         centroid = find_centroid(group, x_values, y_values, space_up)
