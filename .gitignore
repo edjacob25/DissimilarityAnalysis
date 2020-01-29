@@ -3,6 +3,9 @@ config.ini
 .ipynb_checkpoints/
 *.db
 *.png
+*.arff
+*.tex
+*.svg
 __pycache__
 *.sql
 *.log
