@@ -18,7 +18,7 @@ import requests
 from dateutil.relativedelta import relativedelta
 from sty import fg, RgbFg
 
-fg.set_style('orange', RgbFg(255, 150, 50))
+fg.set_style("orange", RgbFg(255, 150, 50))
 config = None
 
 
@@ -41,16 +41,22 @@ def format_seconds(seconds: float) -> str:
 
 
 def format_time_lapse(start: float, end: float) -> str:
-    attrs = ['years', 'months', 'days', 'hours', 'minutes', 'seconds']
+    attrs = ["years", "months", "days", "hours", "minutes", "seconds"]
     delta = relativedelta(datetime.fromtimestamp(end), datetime.fromtimestamp(start))
-    spaces = ['%d %s' % (getattr(delta, attr), getattr(delta, attr) > 1 and attr or attr[:-1]) for attr in attrs if
-              getattr(delta, attr)]
+    spaces = [
+        "%d %s" % (getattr(delta, attr), getattr(delta, attr) > 1 and attr or attr[:-1])
+        for attr in attrs
+        if getattr(delta, attr)
+    ]
     return ", ".join(spaces)
 
 
 def send_notification(message: str, title: str):
     data = {"body": message, "title": title, "type": "note"}
-    headers = {"Content-Type": "application/json", "Access-Token": get_config("SECRETS", "pushbullet_token")}
+    headers = {
+        "Content-Type": "application/json",
+        "Access-Token": get_config("SECRETS", "pushbullet_token"),
+    }
     requests.post("https://api.pushbullet.com/v2/pushes", headers=headers, data=json.dumps(data))
 
 
@@ -92,9 +98,21 @@ def clean_experiments(directory: Path):
             item.unlink()
 
 
-def get_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, verbose: bool = False,
-                rand: bool = False, adjusted_rand: bool = False) -> str:
-    command = ["MeasuresComparator.exe", "-c", str(clustered_filepath), "-r", str(filepath)]
+def get_measure(
+    filepath: Path,
+    clustered_filepath: Path,
+    exe_path: str = None,
+    verbose: bool = False,
+    rand: bool = False,
+    adjusted_rand: bool = False,
+) -> str:
+    command = [
+        "MeasuresComparator.exe",
+        "-c",
+        str(clustered_filepath),
+        "-r",
+        str(filepath),
+    ]
     if rand:
         command.append("--rand")
     elif adjusted_rand:
@@ -107,7 +125,7 @@ def get_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, 
     start = time.time()
     result = subprocess.run(command, stdout=subprocess.PIPE)
     end = time.time()
-    text_result = result.stdout.decode('utf-8')
+    text_result = result.stdout.decode("utf-8")
 
     if result.returncode != 0:
         print(f"{fg.red}Could not get F-Measure\nError ->{fg.rs} {text_result}")
@@ -115,8 +133,10 @@ def get_measure(filepath: Path, clustered_filepath: Path, exe_path: str = None, 
     else:
         if verbose:
             print(f"Calculating f-measure took {end - start}")
-        print(f"{fg.green}Finished getting measure for {fg.blue}{filepath}{fg.green}, measure -> {fg.blue}"
-              f"{text_result}{fg.rs}")
+        print(
+            f"{fg.green}Finished getting measure for {fg.blue}{filepath}{fg.green}, measure -> {fg.blue}"
+            f"{text_result}{fg.rs}"
+        )
         return text_result
 
 
@@ -133,7 +153,7 @@ def get_number_of_clusters(filepath: Path):
 
 
 def save_results(base_directory: Path, filename: str):
-    with ZipFile(base_directory / filename, 'w', compression=ZIP_BZIP2) as zipfile:
+    with ZipFile(base_directory / filename, "w", compression=ZIP_BZIP2) as zipfile:
         for directory in base_directory.iterdir():
             if directory.is_dir():
                 zipfile.write(directory.resolve(), arcname=directory.name)

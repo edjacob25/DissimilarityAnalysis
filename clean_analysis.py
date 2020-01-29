@@ -3,9 +3,10 @@ from pathlib import Path
 
 from common import clean_experiments
 
-parser = argparse.ArgumentParser(description='Cleans the result files and folders of a directory containing categorical'
-                                             ' datasets')
-parser.add_argument('directory', help="Directory in which the cleaned datasets are")
+parser = argparse.ArgumentParser(
+    description="Cleans the result files and folders of a directory containing categorical" " datasets"
+)
+parser.add_argument("directory", help="Directory in which the cleaned datasets are")
 
 args = parser.parse_args()
 

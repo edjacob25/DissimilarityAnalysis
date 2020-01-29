@@ -3,9 +3,9 @@ from pathlib import Path
 
 from common import save_results
 
-parser = argparse.ArgumentParser(description='Saves the result files of a experiment to a zip file')
-parser.add_argument('directory', help="Directory in which the cleaned datasets are")
-parser.add_argument('filename', help="Filename to save")
+parser = argparse.ArgumentParser(description="Saves the result files of a experiment to a zip file")
+parser.add_argument("directory", help="Directory in which the cleaned datasets are")
+parser.add_argument("filename", help="Filename to save")
 
 args = parser.parse_args()
 

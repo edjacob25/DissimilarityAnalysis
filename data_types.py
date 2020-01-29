@@ -38,7 +38,7 @@ class ExperimentParameters:
 
 
 class Experiment(Base):
-    __tablename__ = 'experiment'
+    __tablename__ = "experiment"
 
     id = Column(Integer, primary_key=True)
     method = Column(String)
@@ -52,12 +52,12 @@ class Experiment(Base):
     number_of_clusters = Column(Integer)
     start_time = Column(DateTime)
 
-    set_id = Column(Integer, ForeignKey('experiment_set.id'))
+    set_id = Column(Integer, ForeignKey("experiment_set.id"))
     set = relationship("ExperimentSet", back_populates="experiments")
 
 
 class ExperimentSet(Base):
-    __tablename__ = 'experiment_set'
+    __tablename__ = "experiment_set"
 
     id = Column(Integer, primary_key=True)
     time = Column(DateTime)

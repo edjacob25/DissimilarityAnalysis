@@ -36,7 +36,7 @@ def remove_attribute(filepath: Path, attribute: str):
                 if line_upper.startswith("@DATA"):
                     data_processing = True
             else:
-                line_data = [x.lstrip() for x in line.split(',')]
+                line_data = [x.lstrip() for x in line.split(",")]
                 data.append(line_data)
 
     with filepath.open("w") as new_file:
@@ -52,8 +52,12 @@ def remove_attribute(filepath: Path, attribute: str):
 
 
 # TODO: Add option to read classpath from the config file
-def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: ExperimentSetParameters,
-                    parameters: GeneralParameters, start_mode: str = "1") -> Experiment:
+def cluster_dataset(
+    exp_parameters: ExperimentParameters,
+    set_parameters: ExperimentSetParameters,
+    parameters: GeneralParameters,
+    start_mode: str = "1",
+) -> Experiment:
     _, measure, strategy, weight, learning_based, auc_type = astuple(exp_parameters)
     filepath = exp_parameters.filepath
     clustered_name = filepath.name.replace(".arff", f"_{measure}_{strategy}_{weight}_{auc_type}_clustered.arff")
@@ -65,9 +69,11 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
         java_classpath = parameters.classpath
     else:
         separator = get_platform_separator()
-        java_classpath = f"{get_config('ROUTES', 'weka_jar_path')}{separator}" \
-                         f"{get_config('ROUTES', 'autoweka_jar_path')}{separator}" \
-                         f"{get_config('ROUTES', 'dissimilarity_jar_path')}"
+        java_classpath = (
+            f"{get_config('ROUTES', 'weka_jar_path')}{separator}"
+            f"{get_config('ROUTES', 'autoweka_jar_path')}{separator}"
+            f"{get_config('ROUTES', 'dissimilarity_jar_path')}"
+        )
     command.append("-cp")
     command.append(java_classpath)
 
@@ -89,10 +95,12 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
         distance_function = f"{distance_function} -a {auc_type}"
 
     if not set_parameters.initial:
-        distance_function = f"\"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} " \
-                            f"-t {set_parameters.multiplier}\""
+        distance_function = (
+            f'"{distance_function} -w {set_parameters.weight} -o {set_parameters.strategy} '
+            f'-t {set_parameters.multiplier}"'
+        )
     else:
-        distance_function = f"\"{distance_function}\""
+        distance_function = f'"{distance_function}"'
 
     clusterer = f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 " \
                 f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -M -A {distance_function} -I 500 " \
@@ -137,23 +145,41 @@ def cluster_dataset(exp_parameters: ExperimentParameters, set_parameters: Experi
             clustered_file_path.unlink()
 
         if start_mode == "1":
-            print(f"{fg.orange}There was an error running weka in file {filepath.name} with k-means++ mode, "
-                  f"trying with classic mode{fg.rs}")
+            print(
+                f"{fg.orange}There was an error running weka in file {filepath.name} with k-means++ mode, "
+                f"trying with classic mode{fg.rs}"
+            )
             return cluster_dataset(exp_parameters, set_parameters, parameters, start_mode="0")
         else:
-            raise Exception(f"{fg.red}There was a error running weka with the file {filepath.name} and the" +
-                            f" following command {' '.join(result.args)}{fg.rs}")
+            raise Exception(
+                f"{fg.red}There was a error running weka with the file {filepath.name} and the"
+                + f" following command {' '.join(result.args)}{fg.rs}"
+            )
 
     if start_mode == "1":
-        return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
-                          time_taken=end - start, k_means_plusplus=True, file_name=filepath.name,
-                          number_of_classes=num_classes, number_of_clusters=number_of_clusters,
-                          start_time=start_dt, comments="")
+        return Experiment(
+            method=distance_function.replace('"', ""),
+            command_sent=" ".join(command),
+            time_taken=end - start,
+            k_means_plusplus=True,
+            file_name=filepath.name,
+            number_of_classes=num_classes,
+            number_of_clusters=number_of_clusters,
+            start_time=start_dt,
+            comments="",
+        )
     else:
-        return Experiment(method=distance_function.replace("\"", ""), command_sent=" ".join(command),
-                          time_taken=end - start, k_means_plusplus=False, file_name=filepath.name,
-                          number_of_classes=num_classes, number_of_clusters=number_of_clusters,
-                          start_time=start_dt, comments="")
+        return Experiment(
+            method=distance_function.replace('"', ""),
+            command_sent=" ".join(command),
+            time_taken=end - start,
+            k_means_plusplus=False,
+            file_name=filepath.name,
+            number_of_classes=num_classes,
+            number_of_clusters=number_of_clusters,
+            start_time=start_dt,
+            comments="",
+        )
 
 
 def copy_files(exp_params: ExperimentParameters) -> Tuple[Path, Path]:
@@ -178,22 +204,33 @@ def copy_files(exp_params: ExperimentParameters) -> Tuple[Path, Path]:
     return new_filepath, new_clustered_filepath
 
 
-def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
-                         params: GeneralParameters, auc_type: str = None) -> Experiment:
+def do_single_experiment(
+    item: Path,
+    strategy: str,
+    weight: str,
+    set_parameters: ExperimentSetParameters,
+    params: GeneralParameters,
+    auc_type: str = None,
+) -> Experiment:
     if weight is None:
         exp_params = ExperimentParameters(filepath=item, measure=strategy)
     else:
-        exp_params = ExperimentParameters(filepath=item, measure="LearningBasedDissimilarity",
-                                          strategy=strategy, weight_strategy=weight, learning_based=True,
-                                          auc_type=auc_type)
+        exp_params = ExperimentParameters(
+            filepath=item,
+            measure="LearningBasedDissimilarity",
+            strategy=strategy,
+            weight_strategy=weight,
+            learning_based=True,
+            auc_type=auc_type,
+        )
 
     exp = cluster_dataset(exp_params, set_parameters, params)
 
     new_filepath, new_clustered_filepath = copy_files(exp_params)
 
-    f_measure = get_measure(new_filepath, new_clustered_filepath,
-                            exe_path=params.measure_calculator_path,
-                            verbose=params.verbose)
+    f_measure = get_measure(
+        new_filepath, new_clustered_filepath, exe_path=params.measure_calculator_path, verbose=params.verbose,
+    )
     exp.f_score = f_measure
     return exp
 
@@ -201,12 +238,29 @@ def do_single_experiment(item: Path, strategy: str, weight: str, set_parameters:
 def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParameters):
     if set_params.alternate:
 
-        measures = ["Eskin", "Gambaryan", "Goodall", "Lin", "OccurenceFrequency", "InverseOccurenceFrequency",
-                    "EuclideanDistance", "ManhattanDistance", "LinModified", "LinModified_Kappa",
-                    "LinModified_MinusKappa", "LinModified_KappaMax"]
+        measures = [
+            "Eskin",
+            "Gambaryan",
+            "Goodall",
+            "Lin",
+            "OccurenceFrequency",
+            "InverseOccurenceFrequency",
+            "EuclideanDistance",
+            "ManhattanDistance",
+            "LinModified",
+            "LinModified_Kappa",
+            "LinModified_MinusKappa",
+            "LinModified_KappaMax",
+        ]
         if not set_params.initial:
-            measures = ["EskinModified", "GambaryanModified", "GoodallModified", "OFModified", "IOFModified",
-                        "LinModified"]
+            measures = [
+                "EskinModified",
+                "GambaryanModified",
+                "GoodallModified",
+                "OFModified",
+                "IOFModified",
+                "LinModified",
+            ]
 
         measures = list(zip(measures, [None for _ in range(len(measures))]))
     else:
@@ -214,7 +268,7 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
         weights = ["N", "K", "A"]
         measures = list(product(strategies, weights))
 
-    engine = create_engine('sqlite:///Results/results.db')
+    engine = create_engine("sqlite:///Results/results.db")
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
@@ -223,11 +277,17 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
 
     description = f"{set_params.description}"
     if not set_params.initial:
-        description = f"{description} using {set_params.weight} as decision weight, doing {set_params.strategy} when " \
-                      f"weight is low and multiplying by {set_params.multiplier}"
+        description = (
+            f"{description} using {set_params.weight} as decision weight, doing {set_params.strategy} when "
+            f"weight is low and multiplying by {set_params.multiplier}"
+        )
 
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit=repo.head.object.hexsha,
-                            description=description)
+    exp_set = ExperimentSet(
+        time=datetime.now(),
+        base_directory=str(params.directory),
+        commit=repo.head.object.hexsha,
+        description=description,
+    )
     session.add(exp_set)
     session.commit()
 
@@ -237,9 +297,10 @@ def do_experiment_set(set_params: ExperimentSetParameters, params: GeneralParame
     for item in params.directory.iterdir():
         if item.suffix == ".arff" and "clustered" not in item.stem:
             try:
-                sets = pool.starmap(do_single_experiment,
-                                    [(item, strategy, weight, set_params, params) for strategy, weight in
-                                     measures])
+                sets = pool.starmap(
+                    do_single_experiment,
+                    [(item, strategy, weight, set_params, params) for strategy, weight in measures],
+                )
                 exp_set.experiments.extend(sets)
                 session.commit()
                 i += 1
@@ -281,8 +342,13 @@ def full_experiments(params: GeneralParameters):
     for weight in weights:
         for strategy in strategies:
             for multiplier in multipliers:
-                set_params = ExperimentSetParameters(strategy=strategy, multiplier=multiplier, weight=weight,
-                                                     initial=False, description="Learning Based")
+                set_params = ExperimentSetParameters(
+                    strategy=strategy,
+                    multiplier=multiplier,
+                    weight=weight,
+                    initial=False,
+                    description="Learning Based",
+                )
                 do_experiment_set(set_params, params)
                 set_params.alternate = True
                 set_params.description = "Modified Measures"
@@ -294,8 +360,14 @@ def full_experiments(params: GeneralParameters):
                 clean_experiments(params.directory)
 
 
-def do_experiment_guarded(item: Path, strategy: str, weight: str, set_parameters: ExperimentSetParameters,
-                         params: GeneralParameters, auc_type: str = None) -> Optional[Experiment]:
+def do_experiment_guarded(
+    item: Path,
+    strategy: str,
+    weight: str,
+    set_parameters: ExperimentSetParameters,
+    params: GeneralParameters,
+    auc_type: str = None,
+) -> Optional[Experiment]:
     try:
         return do_single_experiment(item, strategy, weight, set_parameters, params, auc_type)
     except KeyboardInterrupt:
@@ -312,7 +384,7 @@ def do_experiment_guarded(item: Path, strategy: str, weight: str, set_parameters
 def do_auc_exps(params: GeneralParameters):
     auc_types = ["N", "S", "W"]
 
-    engine = create_engine('sqlite:///Results/results_auc.db')
+    engine = create_engine("sqlite:///Results/results_auc.db")
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
@@ -321,8 +393,12 @@ def do_auc_exps(params: GeneralParameters):
 
     description = f"Testing dissimilarity AUCs "
 
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit=repo.head.object.hexsha,
-                            description=description)
+    exp_set = ExperimentSet(
+        time=datetime.now(),
+        base_directory=str(params.directory),
+        commit=repo.head.object.hexsha,
+        description=description,
+    )
     session.add(exp_set)
     session.commit()
     set_params = ExperimentSetParameters(initial=True, description="Learning Based")
@@ -332,8 +408,9 @@ def do_auc_exps(params: GeneralParameters):
     for item in params.directory.iterdir():
         if item.suffix == ".arff" and "clustered" not in item.stem:
             try:
-                sets = pool.starmap(do_single_experiment,
-                                    [(item, "E", "K", set_params, params, auc) for auc in auc_types])
+                sets = pool.starmap(
+                    do_single_experiment, [(item, "E", "K", set_params, params, auc) for auc in auc_types],
+                )
                 exp_set.experiments.extend(sets)
                 session.commit()
                 i += 1
@@ -397,21 +474,34 @@ def do_selected_exps(params: GeneralParameters):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Does the analysis of a directory containing categorical datasets')
-    parser.add_argument('directory', help="Directory in which the cleaned datasets are")
-    parser.add_argument('-cp', help="Classpath for the weka invocation, needs to contain the weka.jar file and probably"
-                                    " the jar of the measure ")
-    parser.add_argument("-v", "--verbose", help="Show the output of the weka commands", action='store_true')
-    parser.add_argument("-f", "--measure-calc", help="Path to the f-measure calculator", dest='measure_calculator_path')
-    parser.add_argument("--alternate-analysis", help="Does the alternate analysis with the already known simmilarity "
-                                                     "measures", action='store_true')
-    parser.add_argument("-s", "--save", help="Path to the f-measure calculator", action='store_true')
+    parser = argparse.ArgumentParser(description="Does the analysis of a directory containing categorical datasets")
+    parser.add_argument("directory", help="Directory in which the cleaned datasets are")
+    parser.add_argument(
+        "-cp",
+        help="Classpath for the weka invocation, needs to contain the weka.jar file and probably the jar of the "
+        "measure ",
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Show the output of the weka commands", action="store_true",
+    )
+    parser.add_argument(
+        "-f", "--measure-calc", help="Path to the f-measure calculator", dest="measure_calculator_path",
+    )
+    parser.add_argument(
+        "--alternate-analysis",
+        help="Does the alternate analysis with the already known simmilarity measures",
+        action="store_true",
+    )
+    parser.add_argument("-s", "--save", help="Path to the f-measure calculator", action="store_true")
 
-    parser.add_argument("--full", help="Whether to do all combinations, overrides --alternate-analysis",
-                        action='store_true')
-    parser.add_argument("--selected",
-                        help="Whether to do only a set of the experiments, overrides --alternate-analysis",
-                        action='store_true')
+    parser.add_argument(
+        "--full", help="Whether to do all combinations, overrides --alternate-analysis", action="store_true",
+    )
+    parser.add_argument(
+        "--selected",
+        help="Whether to do only a set of the experiments, overrides --alternate-analysis",
+        action="store_true",
+    )
     # TODO: Actually save the output of the commands
 
     args = parser.parse_args()
@@ -423,8 +513,12 @@ def main():
         exit(1)
 
     directory = directory.resolve()
-    params = GeneralParameters(directory=directory, verbose=args.verbose, classpath=args.cp,
-                               measure_calculator_path=args.measure_calculator_path)
+    params = GeneralParameters(
+        directory=directory,
+        verbose=args.verbose,
+        classpath=args.cp,
+        measure_calculator_path=args.measure_calculator_path,
+    )
     if args.full:
         print(f"{fg.red}DOING ALL EXPERIMENTS{fg.rs}")
         print(f"{fg.green}Go for a coffee{fg.rs}")

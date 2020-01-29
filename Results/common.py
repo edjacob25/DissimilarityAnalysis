@@ -21,7 +21,7 @@ def from_db_to_pandas(query, eliminate_classes_different=False, allow_negatives=
     serie = None
 
     for experiment in query:
-        filename = experiment.file_name.rsplit('/')[-1].split(".")[0]
+        filename = experiment.file_name.rsplit("/")[-1].split(".")[0]
         if last != filename:
             last = filename
             dataset_name = filename
@@ -29,15 +29,25 @@ def from_db_to_pandas(query, eliminate_classes_different=False, allow_negatives=
             if serie is not None:
                 series.append(serie)
             serie = []
-        measure = experiment.method.split('.')[-1].replace("None", "").replace("-R first-last ", "").replace(" -S", ""). \
-            replace(" -W", "").replace("_", " ").replace("Distance", "").replace("Dissimilarity", "").strip()
+        measure = (
+            experiment.method.split(".")[-1]
+            .replace("None", "")
+            .replace("-R first-last ", "")
+            .replace(" -S", "")
+            .replace(" -W", "")
+            .replace("_", " ")
+            .replace("Distance", "")
+            .replace("Dissimilarity", "")
+            .strip()
+        )
         header = measure
         if "Kappa" in header:
             continue
         if header not in headers:
             headers.append(header)
         if eliminate_classes_different and (
-                experiment.number_of_classes is None or experiment.number_of_clusters != experiment.number_of_classes):
+            experiment.number_of_classes is None or experiment.number_of_clusters != experiment.number_of_classes
+        ):
             if not allow_negatives:
                 serie.append(0.0)
             else:
@@ -96,8 +106,11 @@ def compare_individually(header: str, df: pd.DataFrame):
 def compare_same_item(folder1: str, folder2: str, item: str, eliminate_classes_different: bool):
     firsts = get_datasets(folder1, eliminate_classes_different)
     seconds = get_datasets(folder2, eliminate_classes_different)
-    message = "setting to minimal score when classes and clusters do not match" if eliminate_classes_different else \
-        "mantaining values when classes and clusters do not match"
+    message = (
+        "setting to minimal score when classes and clusters do not match"
+        if eliminate_classes_different
+        else "mantaining values when classes and clusters do not match"
+    )
     for i, dataset in enumerate(["f-measure", "rand", "adjusted rand"]):
         df1 = firsts[i][item]
         df2 = seconds[i][item]
@@ -114,10 +127,12 @@ def compare_same_item(folder1: str, folder2: str, item: str, eliminate_classes_d
             c1, p1 = wilcoxon(df2, df1, alternative="greater")
             if p1 < 0.1:
                 print(
-                    f"{folder2} is significantly better than {folder1} in {dataset} for {item} when {message} -> {p1}")
+                    f"{folder2} is significantly better than {folder1} in {dataset} for {item} when {message} -> {p1}"
+                )
             else:
                 print(
-                    f"{folder1} has no significant difference to {folder2} in {dataset} for {item} when {message} -> {p}, {p1}")
+                    f"{folder1} has no significant difference to {folder2} in {dataset} for {item} when {message} -> {p}, {p1}"
+                )
 
 
 def get_not_significant_group(df: pd.DataFrame) -> List[Set[str]]:
@@ -136,14 +151,15 @@ def get_not_significant_group(df: pd.DataFrame) -> List[Set[str]]:
     return groups
 
 
-def find_centroid(group: Set, x_values: pd.Series, y_values: pd.Series, y_displacement: float = 0) -> Tuple[
-    float, float]:
+def find_centroid(
+    group: Set, x_values: pd.Series, y_values: pd.Series, y_displacement: float = 0
+) -> Tuple[float, float]:
     x_avg = x_values.loc[group].mean()
     y_avg = y_values.loc[group].mean()
     return x_avg, y_avg + y_displacement
 
 
-def calculate_dimension(group: Set, values: pd.Series, margin_percentage: float = .50) -> float:
+def calculate_dimension(group: Set, values: pd.Series, margin_percentage: float = 0.50) -> float:
     v_group = values.loc[group]
     high = v_group.max()
     min = v_group.min()
@@ -151,19 +167,28 @@ def calculate_dimension(group: Set, values: pd.Series, margin_percentage: float 
     return distance + distance * margin_percentage
 
 
-def plot_m2(x_values: pd.Series, y_values: pd.Series, common_groups: List[Set], colors: List,
-            x_limits: Tuple[float, float], y_limits: Tuple[float, float], label: str):
+def plot_m2(
+    x_values: pd.Series,
+    y_values: pd.Series,
+    common_groups: List[Set],
+    colors: List,
+    x_limits: Tuple[float, float],
+    y_limits: Tuple[float, float],
+    label: str,
+):
     fig, ax = plt.subplots()
     ax.scatter(x_values, y_values, c=colors)
-    ax.set_xlabel(f'Average F-measure {label}', fontsize=14)
-    ax.set_ylabel(f'Average Adjusted Rand Index {label}', fontsize=14)
+    ax.set_xlabel(f"Average F-measure {label}", fontsize=14)
+    ax.set_ylabel(f"Average Adjusted Rand Index {label}", fontsize=14)
     ax.set_xlim(*x_limits)
     ax.set_ylim(*y_limits)
     # plt.title(f"Average {label} in F-Measure and Adjusted Rand", fontsize=22)
 
     space_up = (y_limits[1] - y_limits[0]) / 75
     for i, txt in enumerate(x_values.index):
-        ax.text(x_values[i], y_values[i] + space_up, txt, ha='center', va='bottom', fontsize=12)
+        ax.text(
+            x_values[i], y_values[i] + space_up, txt, ha="center", va="bottom", fontsize=12,
+        )
 
     for group in common_groups:
         centroid = find_centroid(group, x_values, y_values, space_up)
@@ -176,14 +201,29 @@ def plot_m2(x_values: pd.Series, y_values: pd.Series, common_groups: List[Set], 
 
 
 def get_datasets(folder, eliminate_classes_different: bool):
-    headers = ["Eskin", "Euclidean", "Gambaryan", "Goodall", "InverseOccurenceFrequency", "LearningBased E N", "Lin",
-               "LinModified Kappa", "LinModified KappaMax", "Manhattan", "OccurenceFrequency"]
-    df = get_dataset(f'sqlite:///{folder}/results_testing.db', eliminate_classes_different=eliminate_classes_different)
-    df2 = get_dataset(f'sqlite:///{folder}/results_training.db',
-                      eliminate_classes_different=eliminate_classes_different)
-    rand = get_dataset(f'sqlite:///{folder}/results_rand.db', eliminate_classes_different=eliminate_classes_different)
-    adjusted_rand = get_dataset(f'sqlite:///{folder}/results_adjusted_rand.db',
-                                eliminate_classes_different=eliminate_classes_different, allow_negatives=True)
+    headers = [
+        "Eskin",
+        "Euclidean",
+        "Gambaryan",
+        "Goodall",
+        "InverseOccurenceFrequency",
+        "LearningBased E N",
+        "Lin",
+        "LinModified Kappa",
+        "LinModified KappaMax",
+        "Manhattan",
+        "OccurenceFrequency",
+    ]
+    df = get_dataset(f"sqlite:///{folder}/results_testing.db", eliminate_classes_different=eliminate_classes_different,)
+    df2 = get_dataset(
+        f"sqlite:///{folder}/results_training.db", eliminate_classes_different=eliminate_classes_different,
+    )
+    rand = get_dataset(f"sqlite:///{folder}/results_rand.db", eliminate_classes_different=eliminate_classes_different,)
+    adjusted_rand = get_dataset(
+        f"sqlite:///{folder}/results_adjusted_rand.db",
+        eliminate_classes_different=eliminate_classes_different,
+        allow_negatives=True,
+    )
     common_cols = [x for x in df2.columns if x in df.columns and x in rand.columns]
     fmeasure = df.loc[:, common_cols].append(df2.loc[:, common_cols])
     return fmeasure, rand, adjusted_rand
@@ -212,8 +252,8 @@ def do_analysis(folder, eliminate_classes_different: bool):
     ax.scatter(f_avg.index, f_avg, label="f-measure", s=20 * 4 * 2, marker="*")
     ax.scatter(f_avg.index, rand_avg, label="rand", s=20 * 4 * 2, marker="+")
     ax.scatter(f_avg.index, ad_rand_avg, label="adjusted_rand", s=20 * 4 * 2, marker=".")
-    ax.set_ylabel('Average rank')
-    ax.set_xlabel('Measures')
+    ax.set_ylabel("Average rank")
+    ax.set_xlabel("Measures")
     ax.legend()
     plt.title("Average rank of measures with different criteria", fontsize=22)
     fig.autofmt_xdate()
@@ -230,7 +270,9 @@ def do_analysis(folder, eliminate_classes_different: bool):
 
     colors = [plt.cm.tab10(i / float(len(f_mean) - 1)) for i in range(len(f_mean))]
 
-    plot_m2(f_mean, adj_rand_mean, common_groups, colors, (0.43, 0.50), (0.035, 0.10), "score")
+    plot_m2(
+        f_mean, adj_rand_mean, common_groups, colors, (0.43, 0.50), (0.035, 0.10), "score",
+    )
 
     plot_m2(f_avg, ad_rand_avg, common_groups, colors, (2, 8), (2, 8), "rank")
 

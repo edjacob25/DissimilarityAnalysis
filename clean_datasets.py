@@ -10,7 +10,7 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
     attributes = []
     data = []
     attributes_used = []
-    relation_name = ""
+
     with open(filename) as file:
         relation_name = file.readline()
         data_processing = False
@@ -19,7 +19,7 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
             if not data_processing:
                 line_upper = line.upper()
                 if line_upper.startswith("@ATTRIBUTE"):
-                    attribute = line.split(' ')
+                    attribute = line.split(" ")
                     name = attribute[1].rstrip()
                     att_type = ""
                     if len(attribute) > 2:
@@ -28,16 +28,16 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
                     i += 1
                     continue
                 if line_upper.startswith("@INPUTS"):
-                    inputs = [x.lstrip() for x in line.split(" ", 1)[1].split(',')]
+                    inputs = [x.lstrip() for x in line.split(" ", 1)[1].split(",")]
                     attributes_used = [x.rstrip() for x in inputs]
                     continue
                 if line_upper.startswith("@OUTPUT"):
-                    outputs = [x.lstrip() for x in line.split(" ", 1)[1].split(',')]
+                    outputs = [x.lstrip() for x in line.split(" ", 1)[1].split(",")]
                     attributes_used.extend([x.rstrip() for x in outputs])
                 if line_upper.startswith("@DATA"):
                     data_processing = True
             else:
-                line_data = [x.lstrip() for x in line.split(',')]
+                line_data = [x.lstrip() for x in line.split(",")]
                 data.append(line_data)
 
     permitted_attributes = [x for x in attributes if x[1] == "" and x[0].split('{')[0] in attributes_used]
@@ -55,8 +55,8 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
                 result = ",".join(points)
                 new_file.write(result)
         print(f"Created file {new_filename}")
-    simple_filename = filename.split('/')[-1].split('.')[0]
-    if worksheet is not None and not '-' in simple_filename:
+    simple_filename = filename.split("/")[-1].split(".")[0]
+    if worksheet is not None and not "-" in simple_filename:
         index += 1
         worksheet.cell(column=index + 1, row=1, value=f"{simple_filename}")
         worksheet.cell(column=index + 1, row=2, value=f"{len(attributes_used)}")
@@ -81,8 +81,9 @@ def apply_cleaning_recursively(root_dir, worksheet=None, index=0, base_dir=None)
 
 
 parser = argparse.ArgumentParser(
-    description='cleans a dataset or set or datasets to only contain categorical attributes')
-parser.add_argument('file', help="File or directory to be converted")
+    description="cleans a dataset or set or datasets to only contain categorical attributes"
+)
+parser.add_argument("file", help="File or directory to be converted")
 
 args = parser.parse_args()
 
