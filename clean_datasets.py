@@ -39,8 +39,9 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
             else:
                 line_data = [x.lstrip() for x in line.split(",")]
                 data.append(line_data)
-
-    permitted_attributes = [x for x in attributes if x[1] == "" and x[0].split('{')[0] in attributes_used]
+    permitted_attributes = [x for x in attributes if x[0].split("{")[0] in attributes_used]
+    categorical_atts = [x for x in attributes if x[1] == "" and x[0].split("{")[0] in attributes_used]
+    print(len(permitted_attributes))
     permitted_indexes = [x[3] for x in permitted_attributes]
 
     if len(permitted_attributes) > 1:
@@ -48,7 +49,10 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
         with open(new_filename, "w") as new_file:
             new_file.write(relation_name)
             for item in permitted_attributes:
-                new_file.write(item[2].replace("{", " {"))
+                if item[1] == "":
+                    new_file.write(item[2].replace("{", " {"))
+                else:
+                    new_file.write(f"@attribute {item[0]} NUMERIC\n")
             new_file.write("@DATA\n")
             for datapoint in data:
                 points = [x for i, x in enumerate(datapoint) if i in permitted_indexes]
@@ -63,7 +67,7 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
         worksheet.cell(column=index + 1, row=3, value=f"{len(data)}")
         worksheet.cell(column=index + 1, row=4, value=f"{len(permitted_attributes) - 1}")
         worksheet.cell(column=index + 1, row=5, value=f"{len(permitted_attributes) > 1}")
-        if len(permitted_attributes) > 1:
+        if len(categorical_atts) > 1:
             copyfile(new_filename, f"{base_dir}/{new_filename.rsplit('/')[-1]}")
     return index, worksheet
 
@@ -74,7 +78,7 @@ def apply_cleaning_recursively(root_dir, worksheet=None, index=0, base_dir=None)
         item_full_path = os.path.join(root_dir, item)
         if os.path.isdir(item_full_path):
             index, worksheet = apply_cleaning_recursively(item_full_path, worksheet, index, base_dir)
-        elif item_full_path.endswith(".dat") or item_full_path.endswith(".dat"):
+        elif item_full_path.endswith(".dat") and item.split(".")[0] in root_dir:
             index, worksheet = modify_file(item_full_path, worksheet, index, base_dir)
             print(f"File {item_full_path} with number {index} cleaned")
     return index, worksheet
