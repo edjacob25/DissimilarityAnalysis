@@ -142,9 +142,9 @@ def get_not_significant_group(df: pd.DataFrame) -> List[Set[str]]:
         group = {column}
         for o in others:
             c, p = wilcoxon(df[column], df[o], alternative="greater")
-            if p > 0.1:
+            if p > 0.05:
                 c1, p1 = wilcoxon(df[o], df[column], alternative="greater")
-                if p1 > 0.1:
+                if p1 > 0.05:
                     group.add(o)
         if len(group) > 1 and group not in groups:
             groups.append(group)
@@ -178,17 +178,16 @@ def plot_m2(
 ):
     fig, ax = plt.subplots()
     ax.scatter(x_values, y_values, c=colors)
-    ax.set_xlabel(f"Average F-measure {label}", fontsize=14)
-    ax.set_ylabel(f"Average Adjusted Rand Index {label}", fontsize=14)
+    ax.set_xlabel(f"Average F-measure {label}", fontsize=18)
+    ax.set_ylabel(f"Average Adjusted Rand Index {label}", fontsize=18)
     ax.set_xlim(*x_limits)
     ax.set_ylim(*y_limits)
     # plt.title(f"Average {label} in F-Measure and Adjusted Rand", fontsize=22)
 
     space_up = (y_limits[1] - y_limits[0]) / 75
     for i, txt in enumerate(x_values.index):
-        ax.text(
-            x_values[i], y_values[i] + space_up, txt, ha="center", va="bottom", fontsize=12,
-        )
+        box = dict(edgecolor=colors[i], alpha=0.9, fill=False) if txt == "Learning Based" else None
+        ax.text(x_values[i], y_values[i] + space_up, txt, ha="center", va="bottom", fontsize=14, bbox=box)
 
     for group in common_groups:
         centroid = find_centroid(group, x_values, y_values, space_up)
@@ -226,6 +225,16 @@ def get_datasets(folder, eliminate_classes_different: bool):
     )
     common_cols = [x for x in df2.columns if x in df.columns and x in rand.columns]
     fmeasure = df.loc[:, common_cols].append(df2.loc[:, common_cols])
+
+    correct_strings = {
+        "LearningBased E N": "Learning Based",
+        "InverseOccurenceFrequency": "Inverse Occurence Frequency",
+        "OccurenceFrequency": "Occurence Frequency",
+    }
+    fmeasure = fmeasure.rename(correct_strings, axis=1)
+    rand = rand.rename(correct_strings, axis=1)
+    adjusted_rand = adjusted_rand.rename(correct_strings, axis=1)
+
     return fmeasure, rand, adjusted_rand
 
 
