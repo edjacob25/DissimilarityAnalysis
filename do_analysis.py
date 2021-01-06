@@ -102,9 +102,11 @@ def cluster_dataset(
     else:
         distance_function = f'"{distance_function}"'
 
-    clusterer = f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 " \
-                f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -M -A {distance_function} -I 500 " \
-                f"-num-slots {math.floor(num_procs / 3)} -S 10"
+    clusterer = (
+        f"weka.clusterers.CategoricalKMeans -init {start_mode} -max-candidates 100 -periodic-pruning 10000 "
+        f"-min-density 2.0 -t1 -1.25 -t2 -1.0 -N {num_classes} -A {distance_function} -I 500 "
+        f"-num-slots {math.floor(num_procs / 3)} -S 10"
+    )
     command.append(clusterer)
     command.append("-i")
     command.append(str(filepath))
@@ -229,7 +231,10 @@ def do_single_experiment(
     new_filepath, new_clustered_filepath = copy_files(exp_params)
 
     f_measure = get_measure(
-        new_filepath, new_clustered_filepath, exe_path=params.measure_calculator_path, verbose=params.verbose,
+        new_filepath,
+        new_clustered_filepath,
+        exe_path=params.measure_calculator_path,
+        verbose=params.verbose,
     )
     exp.f_score = f_measure
     return exp
@@ -409,7 +414,8 @@ def do_auc_exps(params: GeneralParameters):
         if item.suffix == ".arff" and "clustered" not in item.stem:
             try:
                 sets = pool.starmap(
-                    do_single_experiment, [(item, "E", "K", set_params, params, auc) for auc in auc_types],
+                    do_single_experiment,
+                    [(item, "E", "K", set_params, params, auc) for auc in auc_types],
                 )
                 exp_set.experiments.extend(sets)
                 session.commit()
@@ -437,25 +443,46 @@ def do_auc_exps(params: GeneralParameters):
 
 
 def do_selected_exps(params: GeneralParameters):
-    engine = create_engine('sqlite:///Results/results_testing.db')
+    clean_experiments(params.directory)
+    engine = create_engine("sqlite:///Results/results_training_input.db")
     Base.metadata.create_all(engine)
     session_class = sessionmaker(bind=engine)
     session = session_class()
 
-    description = f"Testing datasets with selected algorithms"
+    measures = [
+        "Eskin",
+        "Gambaryan",
+        "Goodall",
+        "Lin",
+        "OccurenceFrequency",
+        "InverseOccurenceFrequency",
+        "EuclideanDistance",
+        "ManhattanDistance",
+        "LinModified_Kappa",
+        "LinModified_KappaMax",
+    ]
+    measures = list(zip(measures, [None for _ in range(len(measures))]))
+    measures.append(("E", "N"))
+    description = f"Mixed datasets with selected algorithms"
 
-    exp_set = ExperimentSet(time=datetime.now(), base_directory=str(params.directory), commit="",
-                            description=description)
+    exp_set = ExperimentSet(
+        time=datetime.now(),
+        base_directory=str(params.directory),
+        commit="",
+        description=description,
+    )
     session.add(exp_set)
     session.commit()
     set_params = ExperimentSetParameters(initial=True, description=description)
     start = time.time()
     items = [x for x in params.directory.iterdir() if x.suffix == ".arff" and "clustered" not in x.stem]
 
-    pool = multiprocessing.Pool(2, init_worker)
-    results =[]
+    pool = multiprocessing.Pool(6, init_worker)
+    results = []
+
     try:
-        sets = pool.starmap(do_experiment_guarded, [(item, "E", "N", set_params, params) for item in items])
+        exps = [(item, measure, weight, set_params, params) for item in items for measure, weight in measures]
+        sets = pool.starmap(do_experiment_guarded, exps)
         results = [x for x in sets if x is not None]
         exp_set.experiments.extend(results)
     except KeyboardInterrupt:
@@ -482,10 +509,16 @@ def main():
         "measure ",
     )
     parser.add_argument(
-        "-v", "--verbose", help="Show the output of the weka commands", action="store_true",
+        "-v",
+        "--verbose",
+        help="Show the output of the weka commands",
+        action="store_true",
     )
     parser.add_argument(
-        "-f", "--measure-calc", help="Path to the f-measure calculator", dest="measure_calculator_path",
+        "-f",
+        "--measure-calc",
+        help="Path to the f-measure calculator",
+        dest="measure_calculator_path",
     )
     parser.add_argument(
         "--alternate-analysis",
@@ -495,7 +528,9 @@ def main():
     parser.add_argument("-s", "--save", help="Path to the f-measure calculator", action="store_true")
 
     parser.add_argument(
-        "--full", help="Whether to do all combinations, overrides --alternate-analysis", action="store_true",
+        "--full",
+        help="Whether to do all combinations, overrides --alternate-analysis",
+        action="store_true",
     )
     parser.add_argument(
         "--selected",

@@ -13,7 +13,9 @@ def main():
     parser.add_argument("directory", help="Directory in which the cleaned datasets are")
     parser.add_argument("--rand", help="Use rand index instead of F-Score", action="store_true")
     parser.add_argument(
-        "--adjusted-rand", help="Use adjusted rand index instead of F-Score", action="store_true",
+        "--adjusted-rand",
+        help="Use adjusted rand index instead of F-Score",
+        action="store_true",
     )
     args = parser.parse_args()
 
@@ -32,7 +34,10 @@ def main():
     description = f"Testing datasets with selected algorithms"
 
     exp_set = ExperimentSet(
-        time=datetime.now(), base_directory=str(params.directory), commit="", description=description,
+        time=datetime.now(),
+        base_directory=str(params.directory),
+        commit="",
+        description=description,
     )
     session.add(exp_set)
     session.commit()

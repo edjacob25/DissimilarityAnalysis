@@ -40,7 +40,7 @@ def modify_file(filename, worksheet=None, index=0, base_dir=None):
                 line_data = [x.lstrip() for x in line.split(",")]
                 data.append(line_data)
 
-    permitted_attributes = [x for x in attributes if x[1] == "" and x[0].split('{')[0] in attributes_used]
+    permitted_attributes = [x for x in attributes if x[1] == "" and x[0].split("{")[0] in attributes_used]
     permitted_indexes = [x[3] for x in permitted_attributes]
 
     if len(permitted_attributes) > 1:
