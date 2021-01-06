@@ -213,11 +213,18 @@ def get_datasets(folder, eliminate_classes_different: bool):
         "Manhattan",
         "OccurenceFrequency",
     ]
-    df = get_dataset(f"sqlite:///{folder}/results_testing.db", eliminate_classes_different=eliminate_classes_different,)
-    df2 = get_dataset(
-        f"sqlite:///{folder}/results_training.db", eliminate_classes_different=eliminate_classes_different,
+    df = get_dataset(
+        f"sqlite:///{folder}/results_testing.db",
+        eliminate_classes_different=eliminate_classes_different,
     )
-    rand = get_dataset(f"sqlite:///{folder}/results_rand.db", eliminate_classes_different=eliminate_classes_different,)
+    df2 = get_dataset(
+        f"sqlite:///{folder}/results_training.db",
+        eliminate_classes_different=eliminate_classes_different,
+    )
+    rand = get_dataset(
+        f"sqlite:///{folder}/results_rand.db",
+        eliminate_classes_different=eliminate_classes_different,
+    )
     adjusted_rand = get_dataset(
         f"sqlite:///{folder}/results_adjusted_rand.db",
         eliminate_classes_different=eliminate_classes_different,
@@ -280,7 +287,13 @@ def do_analysis(folder, eliminate_classes_different: bool):
     colors = [plt.cm.tab10(i / float(len(f_mean) - 1)) for i in range(len(f_mean))]
 
     plot_m2(
-        f_mean, adj_rand_mean, common_groups, colors, (0.43, 0.50), (0.035, 0.10), "score",
+        f_mean,
+        adj_rand_mean,
+        common_groups,
+        colors,
+        (0.43, 0.50),
+        (0.035, 0.10),
+        "score",
     )
 
     plot_m2(f_avg, ad_rand_avg, common_groups, colors, (2, 8), (2, 8), "rank")

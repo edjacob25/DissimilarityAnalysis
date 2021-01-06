@@ -10,3 +10,6 @@ __pycache__
 *.sql
 *.log
 .idea/
+*.html
+*.csv
+*.ipynb
